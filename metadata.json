@@ -1,0 +1,8 @@
+{
+  "name": "EcoRoute Command Center",
+  "description": "A comprehensive logistics and fleet management platform for dispatchers and drivers, featuring real-time tracking, order management, and automated settlements.",
+  "requestFramePermissions": [
+    "geolocation",
+    "microphone"
+  ]
+}
