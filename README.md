@@ -1,6 +1,14 @@
-# EcoRoutes Logistics Management System
+# EcoRoutes Logistics Management System - Frontend
 
 A modern, professional logistics management platform built with React, TypeScript, and Vite.
+
+## 🔗 Related Repositories
+
+This is the **frontend** repository. For the complete system:
+
+- **Backend API**: [eco-routes-backend](https://github.com/eco-routes-logistics/eco-routes-backend)
+- **Main Docs**: [eco-routes](https://github.com/eco-routes-logistics/eco-routes)
+- **Organization**: [eco-routes-logistics](https://github.com/eco-routes-logistics)
 
 ## 🚀 Tech Stack
 
@@ -52,8 +60,8 @@ src/
 
 1. Clone the repository
 ```bash
-git clone <repository-url>
-cd Eco-routes
+git clone https://github.com/eco-routes-logistics/eco-routes-frontend.git
+cd eco-routes-frontend
 ```
 
 2. Install dependencies
