@@ -1,13 +1,15 @@
 import { OrderStatus } from '@/types';
 import type { Order } from '@/types';
 import type { Rider } from '@/stores/riderStore';
-import type { Client } from '@/stores/clientStore';
+import type { Client } from '@/types/client';
+
 
 // Seed Clients
 export const seedClients: Client[] = [
   {
     id: 'CLI-001',
     name: 'Farmchops Ltd',
+    contactName: 'Adebayo Okafor',
     email: 'orders@farmchops.com',
     phone: '+234 801 234 5678',
     company: 'Farmchops',
@@ -15,11 +17,13 @@ export const seedClients: Client[] = [
     totalOrders: 145,
     activeOrders: 8,
     status: 'active',
+    password: 'farmchops123',
     createdAt: '2024-01-15',
   },
   {
     id: 'CLI-002',
     name: 'TechSource Nigeria',
+    contactName: 'Chioma Nwosu',
     email: 'logistics@techsource.ng',
     phone: '+234 802 345 6789',
     company: 'TechSource',
@@ -27,11 +31,13 @@ export const seedClients: Client[] = [
     totalOrders: 89,
     activeOrders: 5,
     status: 'active',
+    password: 'techsource123',
     createdAt: '2024-02-20',
   },
   {
     id: 'CLI-003',
     name: 'LogiTech Solutions',
+    contactName: 'Emeka Eze',
     email: 'dispatch@logitech.com.ng',
     phone: '+234 803 456 7890',
     company: 'LogiTech',
@@ -39,9 +45,11 @@ export const seedClients: Client[] = [
     totalOrders: 234,
     activeOrders: 12,
     status: 'active',
+    password: 'logitech123',
     createdAt: '2023-11-10',
   },
 ];
+
 
 // Seed Riders
 export const seedRiders: Rider[] = [
@@ -94,61 +102,108 @@ export const seedRiders: Rider[] = [
 export const seedOrders: Order[] = [
   {
     id: 'ORD-3492',
+    trackingId: 'TRK-3492',
     customer: 'Acme Corp',
+    customerPhone: '+234 801 111 2222',
     customerLocation: 'Springfield, IL',
     businessClient: 'Farmchops',
+    businessClientId: 'CLI-001',
     status: OrderStatus.DELIVERED,
+    deliveryType: 'Standard',
     driver: 'Mike Ross',
     driverId: 'RID-001',
     date: 'Oct 24, 2023',
     weight: '5kg',
     value: '₦12,500',
+    pickupLocation: 'Ikeja, Lagos',
+    deliveryLocation: 'Springfield, IL',
+    createdAt: '2023-10-24T08:00:00Z',
+    updatedAt: '2023-10-24T14:00:00Z',
+    deliveredAt: '2023-10-24T14:00:00Z',
+    totalFee: 12500,
   },
   {
     id: 'ORD-3493',
+    trackingId: 'TRK-3493',
     customer: 'Globex Inc.',
+    customerPhone: '+234 802 222 3333',
     customerLocation: 'Shelbyville, IL',
     businessClient: 'TechSource',
+    businessClientId: 'CLI-002',
     status: OrderStatus.IN_TRANSIT,
+    deliveryType: 'Standard',
     driver: 'Sarah Connor',
     driverId: 'RID-002',
     date: 'Oct 24, 2023',
     weight: '2kg',
     value: '₦8,000',
+    pickupLocation: 'Lekki, Lagos',
+    deliveryLocation: 'Shelbyville, IL',
+    createdAt: '2023-10-24T09:00:00Z',
+    updatedAt: '2023-10-24T11:00:00Z',
+    totalFee: 8000,
   },
   {
     id: 'ORD-3494',
+    trackingId: 'TRK-3494',
     customer: 'Stark Industries',
+    customerPhone: '+234 803 333 4444',
     customerLocation: 'New York, NY',
     businessClient: 'LogiTech',
+    businessClientId: 'CLI-003',
     status: OrderStatus.PENDING,
+    deliveryType: 'Express',
     date: 'Oct 25, 2023',
     weight: '10kg',
     value: '₦50,000',
+    pickupLocation: 'Victoria Island, Lagos',
+    deliveryLocation: 'New York, NY',
+    createdAt: '2023-10-25T07:00:00Z',
+    updatedAt: '2023-10-25T07:00:00Z',
+    totalFee: 50000,
   },
   {
     id: 'ORD-3495',
+    trackingId: 'TRK-3495',
     customer: 'Wayne Enterprises',
+    customerPhone: '+234 804 444 5555',
     customerLocation: 'Gotham City',
     businessClient: 'Farmchops',
+    businessClientId: 'CLI-001',
     status: OrderStatus.IN_TRANSIT,
+    deliveryType: 'Standard',
     driver: 'Bruce Banner',
     driverId: 'RID-003',
     date: 'Oct 25, 2023',
     weight: '1.5kg',
     value: '₦12,500',
+    pickupLocation: 'Ikeja, Lagos',
+    deliveryLocation: 'Gotham City',
+    createdAt: '2023-10-25T10:00:00Z',
+    updatedAt: '2023-10-25T12:00:00Z',
+    totalFee: 12500,
   },
   {
     id: 'ORD-3496',
+    trackingId: 'TRK-3496',
     customer: 'Cyberdyne Systems',
+    customerPhone: '+234 805 555 6666',
     customerLocation: 'Sunnyvale, CA',
     businessClient: 'TechSource',
+    businessClientId: 'CLI-002',
     status: OrderStatus.CANCELLED,
+    deliveryType: 'Standard',
     date: 'Oct 23, 2023',
     weight: '3.2kg',
     value: '₦15,000',
+    pickupLocation: 'Lekki, Lagos',
+    deliveryLocation: 'Sunnyvale, CA',
+    createdAt: '2023-10-23T08:00:00Z',
+    updatedAt: '2023-10-23T09:00:00Z',
+    totalFee: 15000,
   },
 ];
+
 
 // Helper function to generate new order ID
 export const generateOrderId = (): string => {

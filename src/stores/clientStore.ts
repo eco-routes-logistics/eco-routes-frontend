@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Client } from '@/types';
+import { seedClients } from '@/utils/seedData';
 
 interface ClientState {
   clients: Client[];
   selectedClient: Client | null;
-  
+
   // Actions
   setClients: (clients: Client[]) => void;
   addClient: (client: Client) => void;
@@ -17,7 +18,7 @@ interface ClientState {
 export const useClientStore = create<ClientState>()(
   persist(
     (set) => ({
-      clients: [],
+      clients: seedClients,   // ← always start with seed data
       selectedClient: null,
 
       setClients: (clients) => set({ clients }),
@@ -43,6 +44,7 @@ export const useClientStore = create<ClientState>()(
     }),
     {
       name: 'client-storage',
+      version: 2,   // ← bump version to wipe stale localStorage
     }
   )
 );

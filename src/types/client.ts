@@ -8,6 +8,7 @@ export interface Client {
   address?: string;
   totalOrders: number;
   activeOrders: number;
-  status?: 'active' | 'inactive';
+  status: 'pending' | 'active' | 'suspended';
+  password?: string; // Plain text for demo; hashed in real backend
   createdAt?: string;
 }

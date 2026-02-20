@@ -11,14 +11,14 @@ const Login: React.FC = () => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     // Simulate auth logic
-    navigate('/');
+    navigate('/admin');
   };
 
   const simulateBiometric = () => {
     setIsScanning(true);
     setTimeout(() => {
       setIsScanning(false);
-      navigate('/');
+      navigate('/admin');
     }, 2000);
   };
 
@@ -51,8 +51,8 @@ const Login: React.FC = () => {
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-[9px] font-black uppercase tracking-widest text-white/30 ml-4">Authorized Email</label>
-              <input 
-                type="email" 
+              <input
+                type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -62,8 +62,8 @@ const Login: React.FC = () => {
             </div>
             <div className="space-y-1.5">
               <label className="text-[9px] font-black uppercase tracking-widest text-white/30 ml-4">Access Key</label>
-              <input 
-                type="password" 
+              <input
+                type="password"
                 required
                 placeholder="••••••••••••"
                 className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl px-6 text-sm font-medium text-white focus:ring-2 focus:ring-primary focus:bg-white/10 transition-all outline-none"
@@ -80,7 +80,7 @@ const Login: React.FC = () => {
             <span className="relative z-10 bg-[#050b1a] px-4 mx-auto block w-fit text-[9px] font-black text-white/20 uppercase tracking-widest">or utilize biometric</span>
           </div>
 
-          <button 
+          <button
             onClick={simulateBiometric}
             disabled={isScanning}
             className={`w-full h-20 rounded-[1.5rem] border-2 border-dashed flex items-center justify-center gap-4 transition-all
@@ -100,8 +100,8 @@ const Login: React.FC = () => {
         </div>
 
         <div className="flex justify-center gap-8">
-           <a href="#" className="text-[9px] font-black text-white/30 uppercase tracking-widest hover:text-white transition-colors">Emergency Protocol</a>
-           <a href="#" className="text-[9px] font-black text-white/30 uppercase tracking-widest hover:text-white transition-colors">Terms of Access</a>
+          <a href="#" className="text-[9px] font-black text-white/30 uppercase tracking-widest hover:text-white transition-colors">Emergency Protocol</a>
+          <a href="#" className="text-[9px] font-black text-white/30 uppercase tracking-widest hover:text-white transition-colors">Terms of Access</a>
         </div>
       </div>
     </div>

@@ -1,11 +1,21 @@
 import React, { useState, useMemo } from 'react';
-import { useClientStore, type Client } from '@/stores/clientStore';
+import { useClientStore } from '@/stores/clientStore';
+import type { Client } from '@/types';
 import { useOrderStore } from '@/stores/orderStore';
+
 
 const Clients: React.FC = () => {
   const { clients, addClient, updateClient, deleteClient, setSelectedClient, selectedClient } = useClientStore();
   const { orders } = useOrderStore();
 
+  console.log('DEBUG: Clients render', { clientsLength: clients?.length, ordersLength: orders?.length });
+
+  if (!clients) {
+    console.error('DEBUG: Clients is undefined');
+    return <div className="p-10 text-red-500">Error: Clients data is undefined</div>;
+  }
+
+  const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'suspended'>('active');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,18 +32,22 @@ const Clients: React.FC = () => {
   // Edit client form state
   const [editClientData, setEditClientData] = useState<Partial<Client>>({});
 
-  // Filter clients based on search
+  // Filter clients based on tab and search
   const filteredClients = useMemo(() => {
     return clients.filter(client => {
+      const matchesTab = activeTab === 'active'
+        ? (client.status === 'active' || !client.status)
+        : client.status === activeTab;
       const matchesSearch =
         client.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
         client.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (client.email?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
         client.phone.includes(searchQuery);
-
-      return matchesSearch;
+      return matchesTab && matchesSearch;
     });
-  }, [clients, searchQuery]);
+  }, [clients, searchQuery, activeTab]);
+
+  const pendingCount = clients.filter(c => c.status === 'pending').length;
 
   // Generate client ID
   const generateClientId = (): string => {
@@ -58,6 +72,7 @@ const Clients: React.FC = () => {
       address: newClient.address,
       totalOrders: 0,
       activeOrders: 0,
+      status: 'active',
     };
 
     addClient(client);
@@ -106,6 +121,40 @@ const Clients: React.FC = () => {
             </button>
           </div>
 
+          {/* Tabs */}
+          <div className="flex gap-2 border-b border-gray-200 dark:border-gray-800">
+            {[
+              { key: 'active', label: 'Active Clients', icon: 'check_circle' },
+              { key: 'pending', label: `Pending Approval${pendingCount > 0 ? ` (${pendingCount})` : ''}`, icon: 'hourglass_top' },
+              { key: 'suspended', label: 'Suspended', icon: 'block' },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key as any)}
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold border-b-2 transition-all -mb-px ${activeTab === tab.key
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-gray-300'
+                  }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
+                {tab.label}
+                {tab.key === 'pending' && pendingCount > 0 && (
+                  <span className="ml-1 size-5 bg-amber-500 text-white rounded-full text-[10px] font-black flex items-center justify-center">{pendingCount}</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Pending Approval panel */}
+          {activeTab === 'pending' && (
+            <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 flex items-start gap-3">
+              <span className="material-symbols-outlined text-amber-500 mt-0.5">info</span>
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                These businesses have registered and are awaiting your approval. Review their details and approve or reject their applications.
+              </p>
+            </div>
+          )}
+
           <div className="bg-white dark:bg-[#1a202c] rounded-2xl border border-[#dbdfe6] dark:border-gray-800 shadow-sm overflow-hidden flex flex-col">
             {/* Search Toolbar */}
             <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex flex-col lg:flex-row gap-4 items-center justify-between">
@@ -127,8 +176,10 @@ const Clients: React.FC = () => {
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredClients.length === 0 ? (
                 <div className="col-span-full py-12 text-center text-slate-500">
-                  <span className="material-symbols-outlined text-4xl mb-2 block text-slate-300">business_center</span>
-                  No clients found
+                  <span className="material-symbols-outlined text-4xl mb-2 block text-slate-300">
+                    {activeTab === 'pending' ? 'hourglass_empty' : 'business_center'}
+                  </span>
+                  {activeTab === 'pending' ? 'No pending applications' : 'No clients found'}
                 </div>
               ) : (
                 filteredClients.map((client) => {
@@ -138,15 +189,19 @@ const Clients: React.FC = () => {
                   return (
                     <div
                       key={client.id}
-                      className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl border border-gray-100 dark:border-gray-800 p-6 hover:shadow-lg transition-all cursor-pointer group"
-                      onClick={() => {
-                        setSelectedClient(client);
-                        setEditClientData(client);
-                        setShowEditModal(true);
-                      }}
+                      className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl border border-gray-100 dark:border-gray-800 p-6 hover:shadow-lg transition-all group"
                     >
                       <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-3">
+                        <div
+                          className="flex items-center gap-3 cursor-pointer"
+                          onClick={() => {
+                            if (activeTab === 'active') {
+                              setSelectedClient(client);
+                              setEditClientData(client);
+                              setShowEditModal(true);
+                            }
+                          }}
+                        >
                           <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center">
                             <span className="material-symbols-outlined text-primary text-[24px]">business</span>
                           </div>
@@ -155,6 +210,13 @@ const Clients: React.FC = () => {
                             <p className="text-xs text-slate-500">{client.id}</p>
                           </div>
                         </div>
+                        {/* Status badge */}
+                        {client.status === 'pending' && (
+                          <span className="text-[10px] font-black bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-1 rounded-full">PENDING</span>
+                        )}
+                        {client.status === 'suspended' && (
+                          <span className="text-[10px] font-black bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded-full">SUSPENDED</span>
+                        )}
                       </div>
 
                       <div className="space-y-2 mb-4">
@@ -180,16 +242,56 @@ const Clients: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <div className="text-center">
-                          <p className="text-2xl font-black text-primary">{clientOrders.length}</p>
-                          <p className="text-[10px] text-slate-500 uppercase font-bold">Total Orders</p>
+                      {/* Pending: Approve/Reject buttons */}
+                      {activeTab === 'pending' && (
+                        <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                          <button
+                            onClick={() => updateClient(client.id, { status: 'active' })}
+                            className="flex-1 py-2 bg-green-600 text-white rounded-xl text-xs font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">check_circle</span> Approve
+                          </button>
+                          <button
+                            onClick={() => updateClient(client.id, { status: 'suspended' })}
+                            className="flex-1 py-2 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl text-xs font-bold hover:bg-red-200 transition-all flex items-center justify-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">block</span> Reject
+                          </button>
                         </div>
-                        <div className="text-center">
-                          <p className="text-2xl font-black text-amber-600">{activeOrders}</p>
-                          <p className="text-[10px] text-slate-500 uppercase font-bold">Active</p>
+                      )}
+
+                      {/* Active: Stats */}
+                      {activeTab === 'active' && (
+                        <div
+                          className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700 cursor-pointer"
+                          onClick={() => {
+                            setSelectedClient(client);
+                            setEditClientData(client);
+                            setShowEditModal(true);
+                          }}
+                        >
+                          <div className="text-center">
+                            <p className="text-2xl font-black text-primary">{clientOrders.length}</p>
+                            <p className="text-[10px] text-slate-500 uppercase font-bold">Total Orders</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-2xl font-black text-amber-600">{activeOrders}</p>
+                            <p className="text-[10px] text-slate-500 uppercase font-bold">Active</p>
+                          </div>
                         </div>
-                      </div>
+                      )}
+
+                      {/* Suspended: Reactivate */}
+                      {activeTab === 'suspended' && (
+                        <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                          <button
+                            onClick={() => updateClient(client.id, { status: 'active' })}
+                            className="w-full py-2 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-all flex items-center justify-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">restart_alt</span> Reactivate Account
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })

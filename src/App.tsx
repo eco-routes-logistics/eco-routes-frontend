@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { useInitializeStores } from '@/hooks/useInitializeStores';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 
-// Import migrated pages
+// Admin pages
 import Dashboard from '@/features/dashboard/pages/Dashboard';
 import Orders from '@/features/orders/pages/Orders';
 import Waybill from '@/features/orders/pages/Waybill';
@@ -20,14 +20,62 @@ import Team from '@/features/team/pages/Team';
 import Tracking from '@/features/tracking/pages/Tracking';
 import Login from '@/features/auth/pages/Login';
 
-// Import Landing page from old location (will migrate later)
-import Landing from '../pages/Landing';
+// Client Portal pages
+import ClientLogin from '@/features/client-portal/pages/ClientLogin';
+import ClientSignup from '@/features/client-portal/pages/ClientSignup';
+import ClientLayout from '@/features/client-portal/components/ClientLayout';
+import ClientDashboard from '@/features/client-portal/pages/ClientDashboard';
+import ClientOrders from '@/features/client-portal/pages/ClientOrders';
+import ClientNewOrder from '@/features/client-portal/pages/ClientNewOrder';
+import ClientInvoices from '@/features/client-portal/pages/ClientInvoices';
+
+// Public landing page
+import Landing from '@/pages/Landing';
 
 function App() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const location = useLocation();
 
     // Initialize stores with seed data on first load
     useInitializeStores();
+
+    // Client portal routes get their own layout
+    // Fix: Ensure we don't match /clients (admin route) by checking for /client/ or exact /client
+    const isClientPortal = location.pathname.startsWith('/client/') || location.pathname === '/client';
+
+    // Public pages (no admin chrome)
+    const isPublicPage = location.pathname === '/' ||
+        location.pathname === '/login' ||
+        location.pathname === '/landing';
+
+    if (isClientPortal) {
+        return (
+            <ErrorBoundary>
+                <Routes>
+                    <Route path="/client/login" element={<ClientLogin />} />
+                    <Route path="/client/signup" element={<ClientSignup />} />
+                    <Route path="/client" element={<ClientLayout />}>
+                        <Route path="dashboard" element={<ClientDashboard />} />
+                        <Route path="orders" element={<ClientOrders />} />
+                        <Route path="orders/new" element={<ClientNewOrder />} />
+                        <Route path="invoices" element={<ClientInvoices />} />
+                    </Route>
+                </Routes>
+            </ErrorBoundary>
+        );
+    }
+
+    if (isPublicPage) {
+        return (
+            <ErrorBoundary>
+                <Routes>
+                    <Route path="/" element={<Landing />} />
+                    <Route path="/landing" element={<Landing />} />
+                    <Route path="/login" element={<Login />} />
+                </Routes>
+            </ErrorBoundary>
+        );
+    }
 
     return (
         <ErrorBoundary>
@@ -43,13 +91,10 @@ function App() {
                     {/* Page Content */}
                     <main className="flex-1 overflow-y-auto">
                         <Routes>
-                            {/* Public Routes */}
-                            <Route path="/landing" element={<Landing />} />
-                            <Route path="/login" element={<Login />} />
                             <Route path="/track/:id" element={<Tracking />} />
 
                             {/* Admin Dashboard Routes */}
-                            <Route path="/" element={<Dashboard />} />
+                            <Route path="/admin" element={<Dashboard />} />
                             <Route path="/orders" element={<Orders />} />
                             <Route path="/waybill/:id" element={<Waybill />} />
                             <Route path="/drivers" element={<Riders />} />
@@ -72,3 +117,4 @@ function App() {
 }
 
 export default App;
+

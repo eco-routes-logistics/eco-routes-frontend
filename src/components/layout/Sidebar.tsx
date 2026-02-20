@@ -29,7 +29,7 @@ const isSection = (item: NavItem): item is NavSection => {
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const navItems: NavItem[] = [
     { section: 'MAIN' },
-    { to: '/', label: 'Dashboard', icon: 'grid_view' },
+    { to: '/admin', label: 'Dashboard', icon: 'grid_view' },
     { to: '/orders', label: 'Orders', icon: 'package_2' },
     { to: '/drivers', label: 'Riders', icon: 'person_search' },
     { to: '/clients', label: 'Clients', icon: 'business_center' },
