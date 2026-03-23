@@ -23,11 +23,21 @@ import Login from '@/features/auth/pages/Login';
 // Client Portal pages
 import ClientLogin from '@/features/client-portal/pages/ClientLogin';
 import ClientSignup from '@/features/client-portal/pages/ClientSignup';
+import CorporateSignup from '@/features/client-portal/pages/CorporateSignup';
 import ClientLayout from '@/features/client-portal/components/ClientLayout';
 import ClientDashboard from '@/features/client-portal/pages/ClientDashboard';
 import ClientOrders from '@/features/client-portal/pages/ClientOrders';
 import ClientNewOrder from '@/features/client-portal/pages/ClientNewOrder';
 import ClientInvoices from '@/features/client-portal/pages/ClientInvoices';
+
+// Rider Portal pages
+import RiderLogin from '@/features/rider-portal/pages/RiderLogin';
+import RiderSignup from '@/features/rider-portal/pages/RiderSignup';
+import RiderLayout from '@/features/rider-portal/components/RiderLayout';
+import RiderDashboard from '@/features/rider-portal/pages/RiderDashboard';
+import RiderDeliveries from '@/features/rider-portal/pages/RiderDeliveries';
+import RiderEarnings from '@/features/rider-portal/pages/RiderEarnings';
+import RiderProfile from '@/features/rider-portal/pages/RiderProfile';
 
 // Public landing page
 import Landing from '@/pages/Landing';
@@ -43,6 +53,9 @@ function App() {
     // Fix: Ensure we don't match /clients (admin route) by checking for /client/ or exact /client
     const isClientPortal = location.pathname.startsWith('/client/') || location.pathname === '/client';
 
+    // Rider portal routes get their own layout
+    const isRiderPortal = location.pathname.startsWith('/rider/') || location.pathname === '/rider';
+
     // Public pages (no admin chrome)
     const isPublicPage = location.pathname === '/' ||
         location.pathname === '/login' ||
@@ -54,11 +67,29 @@ function App() {
                 <Routes>
                     <Route path="/client/login" element={<ClientLogin />} />
                     <Route path="/client/signup" element={<ClientSignup />} />
+                    <Route path="/client/corporate-signup" element={<CorporateSignup />} />
                     <Route path="/client" element={<ClientLayout />}>
                         <Route path="dashboard" element={<ClientDashboard />} />
                         <Route path="orders" element={<ClientOrders />} />
                         <Route path="orders/new" element={<ClientNewOrder />} />
                         <Route path="invoices" element={<ClientInvoices />} />
+                    </Route>
+                </Routes>
+            </ErrorBoundary>
+        );
+    }
+
+    if (isRiderPortal) {
+        return (
+            <ErrorBoundary>
+                <Routes>
+                    <Route path="/rider/login" element={<RiderLogin />} />
+                    <Route path="/rider/signup" element={<RiderSignup />} />
+                    <Route path="/rider" element={<RiderLayout />}>
+                        <Route path="dashboard" element={<RiderDashboard />} />
+                        <Route path="deliveries" element={<RiderDeliveries />} />
+                        <Route path="earnings" element={<RiderEarnings />} />
+                        <Route path="profile" element={<RiderProfile />} />
                     </Route>
                 </Routes>
             </ErrorBoundary>

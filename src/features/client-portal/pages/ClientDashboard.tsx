@@ -2,18 +2,23 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useClientAuthStore } from '@/stores/clientAuthStore';
 import { useOrderStore } from '@/stores/orderStore';
-import { OrderStatus } from '@/types';
+import { useWalletStore } from '@/stores/walletStore';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { ORDER_STATUSES } from '@/utils/constants';
 
 const statusConfig: Record<string, { label: string; dot: string; text: string }> = {
-    [OrderStatus.PENDING]: { label: 'Pending', dot: 'bg-amber-400', text: 'text-amber-700 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400' },
-    [OrderStatus.IN_TRANSIT]: { label: 'In Transit', dot: 'bg-blue-500', text: 'text-blue-700 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400' },
-    [OrderStatus.DELIVERED]: { label: 'Delivered', dot: 'bg-emerald-500', text: 'text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400' },
-    [OrderStatus.CANCELLED]: { label: 'Cancelled', dot: 'bg-red-400', text: 'text-red-700 bg-red-50 dark:bg-red-900/20 dark:text-red-400' },
+    [ORDER_STATUSES.PENDING]: { label: 'Pending', dot: 'bg-amber-400', text: 'text-amber-700 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400' },
+    [ORDER_STATUSES.IN_TRANSIT]: { label: 'In Transit', dot: 'bg-blue-500', text: 'text-blue-700 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400' },
+    [ORDER_STATUSES.DELIVERED]: { label: 'Delivered', dot: 'bg-emerald-500', text: 'text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400' },
+    [ORDER_STATUSES.CANCELLED]: { label: 'Cancelled', dot: 'bg-red-400', text: 'text-red-700 bg-red-50 dark:bg-red-900/20 dark:text-red-400' },
 };
 
 const ClientDashboard: React.FC = () => {
     const { loggedInClient } = useClientAuthStore();
     const { orders } = useOrderStore();
+    const { getWallet } = useWalletStore();
+    const { system } = useSettingsStore();
+    const currency = system.currency === 'NGN' ? '₦' : '£';
 
     const myOrders = useMemo(
         () => orders.filter((o) => o.businessClientId === loggedInClient?.id),
@@ -22,10 +27,13 @@ const ClientDashboard: React.FC = () => {
 
     const stats = useMemo(() => ({
         total: myOrders.length,
-        pending: myOrders.filter((o) => o.status === OrderStatus.PENDING).length,
-        inTransit: myOrders.filter((o) => o.status === OrderStatus.IN_TRANSIT).length,
-        delivered: myOrders.filter((o) => o.status === OrderStatus.DELIVERED).length,
+        pending: myOrders.filter((o) => o.status === ORDER_STATUSES.PENDING).length,
+        inTransit: myOrders.filter((o) => o.status === ORDER_STATUSES.IN_TRANSIT).length,
+        delivered: myOrders.filter((o) => o.status === ORDER_STATUSES.DELIVERED).length,
     }), [myOrders]);
+
+    const wallet = loggedInClient ? getWallet(loggedInClient.id) : null;
+    const balance = wallet ? wallet.balance : 0;
 
     const recentOrders = [...myOrders].reverse().slice(0, 6);
     const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -54,12 +62,54 @@ const ClientDashboard: React.FC = () => {
                 </div>
 
                 {/* Metric cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Account Type Specific Cards */}
+                    {loggedInClient?.accountType === 'pay_as_you_go' ? (
+                        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 relative overflow-hidden group">
+                            <div className="absolute -right-6 -top-6 size-24 bg-primary/20 blur-2xl rounded-full group-hover:bg-primary/30 transition-all duration-500" />
+                            <div className="relative z-10 flex flex-col h-full justify-between">
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Wallet Balance</p>
+                                    <div className="size-8 rounded-lg bg-white/10 flex items-center justify-center">
+                                        <span className="material-symbols-outlined text-[18px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>account_balance_wallet</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="text-3xl font-black text-white">{currency}{balance.toLocaleString()}</p>
+                                    <div className="mt-4 flex gap-2">
+                                        <button className="flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold hover:bg-primary-dark transition-colors shadow-lg shadow-primary/20">
+                                            Fund Wallet
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 relative overflow-hidden group">
+                            <div className="absolute -right-6 -top-6 size-24 bg-purple-500/20 blur-2xl rounded-full group-hover:bg-purple-500/30 transition-all duration-500" />
+                            <div className="relative z-10 flex flex-col h-full justify-between">
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Monthly Bill</p>
+                                    <div className="size-8 rounded-lg bg-white/10 flex items-center justify-center">
+                                        <span className="material-symbols-outlined text-[18px] text-purple-400" style={{ fontVariationSettings: "'FILL' 1" }}>corporate_fare</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="text-3xl font-black text-white">{currency}0</p>
+                                    <div className="mt-4 flex gap-2">
+                                        <div className="flex-1 py-2 bg-white/5 border border-white/10 text-white rounded-lg text-[11px] font-bold text-center">
+                                            Post-Paid Account
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {[
                         { label: 'Total Orders', value: stats.total, sub: 'All time', icon: 'inventory_2', iconBg: 'bg-slate-100 dark:bg-slate-800', iconColor: 'text-slate-600 dark:text-slate-300' },
                         { label: 'Pending', value: stats.pending, sub: 'Awaiting pickup', icon: 'schedule', iconBg: 'bg-amber-50 dark:bg-amber-900/20', iconColor: 'text-amber-600' },
                         { label: 'In Transit', value: stats.inTransit, sub: 'On the way', icon: 'local_shipping', iconBg: 'bg-blue-50 dark:bg-blue-900/20', iconColor: 'text-blue-600' },
-                        { label: 'Delivered', value: stats.delivered, sub: 'Completed', icon: 'check_circle', iconBg: 'bg-emerald-50 dark:bg-emerald-900/20', iconColor: 'text-emerald-600' },
                     ].map((card) => (
                         <div key={card.label} className="bg-white dark:bg-[#1a1d27] rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
                             <div className="flex items-center justify-between mb-4">

@@ -40,40 +40,39 @@ const features = [
 
 const plans = [
     {
-        name: 'Standard',
-        price: { ngn: '₦45,000', gbp: '£30' },
-        period: 'per month',
+        name: 'Pay-As-You-Go Wallet',
+        price: '₦0',
+        period: 'no monthly fees',
         highlight: false,
         badge: null,
-        desc: 'Perfect for small and growing businesses that need reliable, trackable deliveries.',
+        desc: 'Top up your account balance and pay strictly for the deliveries you make. No hidden costs.',
         perks: [
-            'Up to 30 deliveries/day',
+            'Pay per delivery only',
             'Real-time order tracking',
-            'Client portal access',
-            'Auto-generated invoices',
-            'Email & chat support',
+            'Instant auto-invoicing',
+            'Dashboard & reporting',
+            'Standard support',
         ],
-        cta: 'Get started',
+        cta: 'Create free account',
         ctaTo: '/client/signup',
     },
     {
-        name: 'Premium (Marketplace)',
-        price: { ngn: '₦120,000', gbp: '£80' },
-        period: 'per month',
+        name: 'Corporate Invoicing',
+        price: 'Post-Paid',
+        period: 'billed monthly',
         highlight: true,
-        badge: 'Most popular',
-        desc: 'For high-volume businesses that need priority dispatch, analytics, and marketplace visibility.',
+        badge: 'For high volume',
+        desc: 'For verified businesses doing 50+ deliveries daily. Consolidate your billing to a single monthly invoice.',
         perks: [
-            'Unlimited deliveries/day',
+            'No upfront wallet funding',
             'Priority dispatch & routing',
-            'Marketplace listing & exposure',
             'Advanced analytics & reports',
             'Dedicated account manager',
             'API & custom integrations',
-            'SLA guarantee',
+            'Up to 30 days credit limits',
         ],
-        cta: 'Get started',
-        ctaTo: '/client/signup',
+        cta: 'Apply for credit',
+        ctaTo: '/client/corporate-signup',
     },
 ];
 
@@ -93,7 +92,7 @@ const Landing: React.FC = () => {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         let animId: number;
-        const resize = () => { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; };
+        const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
         resize();
         window.addEventListener('resize', resize);
         const particles = Array.from({ length: 55 }, () => ({
@@ -128,8 +127,9 @@ const Landing: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-[#050b1a] text-white flex flex-col relative" style={{ overflowX: 'clip' }}>
-            {/* Global grid overlay */}
+            {/* Global Background Elements */}
             <div className="fixed inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] [background-size:60px_60px] pointer-events-none z-0" />
+            <canvas ref={canvasRef} className="fixed top-0 left-0 w-screen h-screen pointer-events-none z-0" style={{ opacity: 0.8 }} />
 
             {/* Nav */}
             <nav className="flex items-center justify-between px-8 py-5 border-b border-white/5 relative z-20 sticky top-0 bg-[#050b1a]/80 backdrop-blur-xl">
@@ -159,7 +159,6 @@ const Landing: React.FC = () => {
 
             {/* Hero */}
             <div className="relative flex flex-col items-center justify-center text-center px-6 pt-20 pb-16 overflow-hidden">
-                <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-0" />
                 <div className="absolute top-[-80px] left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-primary/12 blur-[140px] rounded-full pointer-events-none z-0" />
                 <div className="absolute top-1/3 left-[-100px] w-[350px] h-[350px] bg-violet-600/8 blur-[100px] rounded-full pointer-events-none z-0" />
                 <div className="absolute top-1/3 right-[-100px] w-[350px] h-[350px] bg-blue-600/8 blur-[100px] rounded-full pointer-events-none z-0" />
@@ -181,27 +180,17 @@ const Landing: React.FC = () => {
                     <p className="text-lg text-white/45 max-w-2xl mx-auto mb-4 leading-relaxed font-medium">
                         EcoRoute finds the fastest, most economical &amp; eco-friendly delivery routes for your business. Focus on what you do best — we'll handle the logistics.
                     </p>
-                    <p className="text-[13px] text-white/25 mb-10">No credit card required · 30-day free trial · Cancel anytime</p>
+                    <p className="text-[13px] text-white/25 mb-10">Fast, reliable, and eco-friendly logistics for your business.</p>
 
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-14">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                         <Link to="/client/signup" className="group w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 bg-primary text-white rounded-2xl text-[15px] font-bold hover:bg-primary-dark transition-all shadow-2xl shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98]">
                             <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>rocket_launch</span>
-                            Try it free for 30 days
+                            Create an Account
                             <span className="material-symbols-outlined text-[16px] group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
                         </Link>
                         <Link to="/client/login" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/8 text-white rounded-2xl text-[15px] font-semibold transition-all backdrop-blur-sm">
                             Sign in to your portal
                         </Link>
-                    </div>
-
-                    {/* Stats */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-white/5 rounded-2xl overflow-hidden border border-white/5">
-                        {stats.map((s) => (
-                            <div key={s.label} className="bg-white/[0.03] backdrop-blur-sm px-6 py-5 text-center hover:bg-white/[0.06] transition-colors">
-                                <p className="text-2xl font-black text-white mb-0.5">{s.value}</p>
-                                <p className="text-[11px] text-white/35 font-medium">{s.label}</p>
-                            </div>
-                        ))}
                     </div>
                 </div>
             </div>
@@ -262,9 +251,9 @@ const Landing: React.FC = () => {
             <div id="pricing" className="px-8 pt-12 pb-24 relative z-10 scroll-mt-20">
                 <div className="max-w-4xl mx-auto">
                     <div className="text-center mb-12">
-                        <p className="text-[11px] font-bold text-primary/60 uppercase tracking-widest mb-3">Plans &amp; Pricing</p>
-                        <h2 className="text-3xl font-black text-white">Simple, transparent pricing</h2>
-                        <p className="text-white/40 mt-2 text-[14px]">No credit card required. Cancel anytime. Prices shown in NGN and GBP.</p>
+                        <p className="text-[11px] font-bold text-primary/60 uppercase tracking-widest mb-3">Transparent Pricing</p>
+                        <h2 className="text-3xl font-black text-white">Pay only for what you send</h2>
+                        <p className="text-white/40 mt-2 text-[14px]">Fund your digital wallet or apply for a corporate credit account.</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {plans.map((plan) => (
@@ -281,8 +270,7 @@ const Landing: React.FC = () => {
                                     <p className={`text-[12px] font-bold uppercase tracking-widest mb-3 ${plan.highlight ? 'text-primary' : 'text-white/40'
                                         }`}>{plan.name}</p>
                                     <div className="flex items-baseline gap-2 flex-wrap mb-1">
-                                        <p className="text-4xl font-black text-white">{plan.price.ngn}</p>
-                                        <span className="text-white/30 text-sm">/ {plan.price.gbp}</span>
+                                        <p className="text-4xl font-black text-white">{plan.price}</p>
                                     </div>
                                     <p className="text-[12px] text-white/30">{plan.period}</p>
                                 </div>

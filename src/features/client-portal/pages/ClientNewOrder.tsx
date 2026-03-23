@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useClientAuthStore } from '@/stores/clientAuthStore';
 import { useOrderStore } from '@/stores/orderStore';
+import { useWalletStore } from '@/stores/walletStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { DELIVERY_TYPES } from '@/utils/constants';
 import { generateOrderId, formatDate } from '@/utils/seedData';
@@ -12,6 +13,7 @@ const ClientNewOrder: React.FC = () => {
     const { loggedInClient } = useClientAuthStore();
     const { addOrder } = useOrderStore();
     const { system } = useSettingsStore();
+    const { getWallet, addTransaction } = useWalletStore();
     const navigate = useNavigate();
     const currencySymbol = system.currency === 'NGN' ? '₦' : '£';
 
@@ -34,6 +36,13 @@ const ClientNewOrder: React.FC = () => {
         deliveryType: DELIVERY_TYPES.STANDARD as string,
         specialInstructions: '',
     });
+
+    const wallet = loggedInClient ? getWallet(loggedInClient.id) : null;
+    const balance = wallet ? wallet.balance : 0;
+
+    // Mock delivery fee calculation based on weight + base fee
+    const deliveryFee = 2500 + (Number(form.weight) * 500);
+    const hasEnoughBalance = balance >= deliveryFee;
 
     const update = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
 
@@ -69,8 +78,18 @@ const ClientNewOrder: React.FC = () => {
                 date: formatDate(),
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
-                totalFee: Number(form.value),
+                totalFee: deliveryFee,
             });
+
+            // Deduct from wallet
+            addTransaction({
+                clientId: loggedInClient.id,
+                amount: deliveryFee,
+                type: 'debit',
+                description: `Delivery Fee for order ${orderId}`,
+                status: 'success'
+            });
+
             setIsSubmitting(false);
             navigate('/client/orders');
         }, 800);
@@ -94,8 +113,8 @@ const ClientNewOrder: React.FC = () => {
                         <React.Fragment key={s}>
                             <div className={`flex items-center gap-2 ${i <= step ? 'text-primary' : 'text-slate-300 dark:text-gray-600'}`}>
                                 <div className={`size-7 rounded-full flex items-center justify-center text-xs font-black border-2 transition-all ${i < step ? 'bg-primary border-primary text-white' :
-                                        i === step ? 'border-primary text-primary bg-primary/10' :
-                                            'border-slate-200 dark:border-gray-700 text-slate-400'
+                                    i === step ? 'border-primary text-primary bg-primary/10' :
+                                        'border-slate-200 dark:border-gray-700 text-slate-400'
                                     }`}>
                                     {i < step ? <span className="material-symbols-outlined text-[14px]">check</span> : i + 1}
                                 </div>
@@ -189,8 +208,8 @@ const ClientNewOrder: React.FC = () => {
                                             type="button"
                                             onClick={() => update('deliveryType', type)}
                                             className={`p-3 rounded-xl border-2 text-sm font-bold text-left transition-all ${form.deliveryType === type
-                                                    ? 'border-primary bg-primary/5 text-primary'
-                                                    : 'border-slate-200 dark:border-gray-700 text-slate-600 dark:text-gray-400 hover:border-primary/50'
+                                                ? 'border-primary bg-primary/5 text-primary'
+                                                : 'border-slate-200 dark:border-gray-700 text-slate-600 dark:text-gray-400 hover:border-primary/50'
                                                 }`}
                                         >
                                             {type}
@@ -232,6 +251,32 @@ const ClientNewOrder: React.FC = () => {
                                     ))}
                                 </div>
                             ))}
+
+                            <div className="mt-6 bg-slate-900 rounded-2xl p-5 border border-slate-800 relative overflow-hidden group">
+                                <div className="absolute -right-6 -top-6 size-24 bg-primary/20 blur-2xl rounded-full" />
+                                <div className="relative z-10 flex items-center justify-between mb-4">
+                                    <p className="text-white font-bold text-lg">Payment Summary</p>
+                                    <div className="size-8 rounded-lg bg-white/10 flex items-center justify-center">
+                                        <span className="material-symbols-outlined text-[18px] text-white">account_balance_wallet</span>
+                                    </div>
+                                </div>
+                                <div className="space-y-3 relative z-10">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-400">Delivery Fee</span>
+                                        <span className="text-white font-bold">{currencySymbol}{deliveryFee.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm border-b border-slate-700 pb-3">
+                                        <span className="text-slate-400">Current Wallet Balance</span>
+                                        <span className="text-white font-bold">{currencySymbol}{balance.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm pt-1">
+                                        <span className="text-slate-300">Remaining Balance</span>
+                                        <span className={`font-bold ${hasEnoughBalance ? 'text-emerald-400' : 'text-red-400'}`}>
+                                            {currencySymbol}{(balance - deliveryFee).toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                         </>
                     )}
                 </div>
@@ -257,13 +302,18 @@ const ClientNewOrder: React.FC = () => {
                     ) : (
                         <button
                             onClick={handleSubmit}
-                            disabled={isSubmitting}
-                            className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-green-600/20 hover:bg-green-700 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                            disabled={isSubmitting || !hasEnoughBalance}
+                            className={`flex-1 py-3 text-white rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${hasEnoughBalance
+                                    ? 'bg-green-600 shadow-lg shadow-green-600/20 hover:bg-green-700 disabled:opacity-60'
+                                    : 'bg-red-500 opacity-50 cursor-not-allowed'
+                                }`}
                         >
                             {isSubmitting ? (
-                                <><span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span> Submitting...</>
+                                <><span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span> Processing...</>
+                            ) : !hasEnoughBalance ? (
+                                <><span className="material-symbols-outlined text-[18px]">account_balance_wallet</span> Insufficient Funds</>
                             ) : (
-                                <><span className="material-symbols-outlined text-[18px]">check_circle</span> Confirm & Place Order</>
+                                <><span className="material-symbols-outlined text-[18px]">check_circle</span> Pay & Place Order</>
                             )}
                         </button>
                     )}

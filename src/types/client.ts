@@ -5,10 +5,11 @@ export interface Client {
   email: string;
   phone: string;
   company: string;
-  address?: string;
+  address: string;
+  accountType?: 'pay_as_you_go' | 'corporate';
   totalOrders: number;
   activeOrders: number;
-  status: 'pending' | 'active' | 'suspended';
+  status: 'active' | 'inactive' | 'pending';
   password?: string; // Plain text for demo; hashed in real backend
   createdAt?: string;
 }

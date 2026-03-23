@@ -72,15 +72,15 @@ const ClientSignup: React.FC = () => {
                     <div className="size-16 bg-emerald-50 border-2 border-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
                         <span className="material-symbols-outlined text-emerald-500 text-[32px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                     </div>
-                    <h2 className="text-xl font-bold text-slate-900 mb-2">Application submitted</h2>
+                    <h2 className="text-xl font-bold text-slate-900 mb-2">Application Received</h2>
                     <p className="text-sm text-slate-500 mb-6">
-                        Your account for <strong>{form.company}</strong> is under review. We'll notify you at <strong>{form.email}</strong> once approved — usually within 24 hours.
+                        Your account for <strong>{form.company}</strong> is currently under review. Our admin team will verify your details and approve your account shortly. We will notify you at <strong>{form.email}</strong> once approved.
                     </p>
                     <Link
-                        to="/client/login"
+                        to="/"
                         className="inline-flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-700 transition-all"
                     >
-                        Back to sign in
+                        Return to Homepage
                     </Link>
                 </div>
             </div>
@@ -123,8 +123,8 @@ const ClientSignup: React.FC = () => {
                     <p className="text-[14px] font-bold text-slate-900">EcoRoute</p>
                 </div>
 
-                <h1 className="text-2xl font-bold text-slate-900 mb-1">Apply for access</h1>
-                <p className="text-sm text-slate-500 mb-8">Create a business account — our team will review and approve within 24 hours.</p>
+                <h1 className="text-2xl font-bold text-slate-900 mb-1">Apply for an account</h1>
+                <p className="text-sm text-slate-500 mb-8">Sign up for a Pay-As-You-Go wallet. All new accounts are reviewed by our admin team before activation.</p>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {/* Company section */}
@@ -166,14 +166,16 @@ const ClientSignup: React.FC = () => {
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                                 </svg>
-                                Submitting...
+                                Creating account...
                             </>
-                        ) : 'Submit application'}
+                        ) : 'Create free account'}
                     </button>
 
                     <p className="text-center text-[12px] text-slate-500">
                         Already have an account?{' '}
                         <Link to="/client/login" className="text-primary font-semibold hover:underline">Sign in</Link>
+                        <span className="mx-2 text-slate-300">|</span>
+                        <Link to="/client/corporate-signup" className="text-slate-600 font-semibold hover:underline">Apply for Corporate Account</Link>
                     </p>
                 </form>
             </div>

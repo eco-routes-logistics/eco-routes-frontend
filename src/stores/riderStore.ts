@@ -6,11 +6,20 @@ export interface Rider {
   name: string;
   phone: string;
   email?: string;
-  status: 'active' | 'inactive' | 'busy';
+  password?: string;
+  status: 'active' | 'inactive' | 'busy' | 'pending' | 'rejected';
+  riderType: 'standard' | 'premium';
   currentOrders: number;
   totalDeliveries: number;
   rating: number;
   vehicleType?: string;
+  vehicleNumber?: string;
+  // KYC fields (premium/marketplace riders)
+  nin?: string;
+  idType?: string;
+  idDocumentUrl?: string;
+  passportPhotoUrl?: string;
+  rejectionReason?: string;
 }
 
 interface RiderState {

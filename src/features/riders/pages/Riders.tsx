@@ -11,6 +11,8 @@ const Riders: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   // New rider form state
   const [newRider, setNewRider] = useState({
@@ -57,6 +59,7 @@ const Riders: React.FC = () => {
       phone: newRider.phone,
       email: newRider.email,
       status: 'active',
+      riderType: 'standard',
       currentOrders: 0,
       totalDeliveries: 0,
       rating: 5.0,
@@ -89,6 +92,21 @@ const Riders: React.FC = () => {
     updateRider(riderId, { status: newStatus });
   };
 
+  // Approve pending rider
+  const handleApprove = (riderId: string) => {
+    updateRider(riderId, { status: 'active' });
+  };
+
+  // Reject pending rider
+  const handleReject = (riderId: string) => {
+    updateRider(riderId, { status: 'rejected', rejectionReason: rejectReason });
+    setRejectingId(null);
+    setRejectReason('');
+  };
+
+  // Mask NIN
+  const maskNin = (nin: string) => `${nin.slice(0, 3)}${'•'.repeat(5)}${nin.slice(-3)}`;
+
   // Get rider's orders
   const getRiderOrders = (riderId: string) => {
     return orders.filter(order => order.driverId === riderId);
@@ -103,6 +121,10 @@ const Riders: React.FC = () => {
         return 'bg-gray-50 text-gray-700 border-gray-100 dark:bg-gray-900/20 dark:text-gray-400';
       case 'busy':
         return 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-900/20 dark:text-amber-400';
+      case 'pending':
+        return 'bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-900/20 dark:text-blue-400';
+      case 'rejected':
+        return 'bg-red-50 text-red-700 border-red-100 dark:bg-red-900/20 dark:text-red-400';
       default:
         return 'bg-gray-50 text-gray-700 border-gray-100';
     }
@@ -117,6 +139,11 @@ const Riders: React.FC = () => {
               <h1 className="text-3xl font-black tracking-tight text-[#111318] dark:text-white">Rider Management</h1>
               <p className="text-sm text-slate-500 mt-1">
                 {filteredRiders.length} of {riders.length} riders • {riders.filter(r => r.status === 'active').length} active
+                {riders.filter(r => r.status === 'pending').length > 0 && (
+                  <span className="ml-2 px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 rounded-full text-xs font-bold">
+                    {riders.filter(r => r.status === 'pending').length} pending review
+                  </span>
+                )}
               </p>
             </div>
             <button
@@ -132,7 +159,7 @@ const Riders: React.FC = () => {
             {/* Filters Toolbar */}
             <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex flex-col lg:flex-row gap-4 items-center justify-between">
               <div className="flex items-center gap-2 overflow-x-auto w-full lg:w-auto">
-                {['All', 'active', 'inactive', 'busy'].map((tab) => (
+                {['All', 'active', 'inactive', 'busy', 'pending'].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setStatusFilter(tab)}
@@ -161,100 +188,252 @@ const Riders: React.FC = () => {
             </div>
 
             {/* Riders Grid */}
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredRiders.length === 0 ? (
-                <div className="col-span-full py-12 text-center text-slate-500">
-                  <span className="material-symbols-outlined text-4xl mb-2 block text-slate-300">person_off</span>
-                  No riders found
-                </div>
-              ) : (
-                filteredRiders.map((rider) => (
-                  <div
-                    key={rider.id}
-                    className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl border border-gray-100 dark:border-gray-800 p-6 hover:shadow-lg transition-all cursor-pointer group"
-                    onClick={() => {
-                      setSelectedRider(rider);
-                      setEditRiderData(rider);
-                      setShowEditModal(true);
-                    }}
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="size-12 rounded-full bg-cover bg-center" style={{ backgroundImage: `url('https://picsum.photos/seed/${rider.name}/100/100')` }}></div>
-                        <div>
-                          <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{rider.name}</h3>
-                          <p className="text-xs text-slate-500">{rider.id}</p>
-                        </div>
-                      </div>
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tight border ${getStatusColor(rider.status)}`}>
-                        {rider.status}
-                      </span>
-                    </div>
-
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="material-symbols-outlined text-[18px] text-slate-400">phone</span>
-                        <span className="text-slate-600 dark:text-slate-400">{rider.phone}</span>
-                      </div>
-                      {rider.email && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="material-symbols-outlined text-[18px] text-slate-400">email</span>
-                          <span className="text-slate-600 dark:text-slate-400">{rider.email}</span>
-                        </div>
-                      )}
-                      {rider.vehicleType && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="material-symbols-outlined text-[18px] text-slate-400">two_wheeler</span>
-                          <span className="text-slate-600 dark:text-slate-400">{rider.vehicleType}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <div className="text-center">
-                        <p className="text-2xl font-black text-primary">{rider.currentOrders}</p>
-                        <p className="text-[10px] text-slate-500 uppercase font-bold">Active</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-black text-slate-700 dark:text-white">{rider.totalDeliveries}</p>
-                        <p className="text-[10px] text-slate-500 uppercase font-bold">Total</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-black text-amber-600">
-                          {rider.rating.toFixed(1)}
-                          <span className="material-symbols-outlined text-[16px] align-middle ml-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                        </p>
-                        <p className="text-[10px] text-slate-500 uppercase font-bold">Rating</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleRiderStatus(rider.id, rider.status);
-                        }}
-                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${rider.status === 'active'
-                            ? 'bg-red-50 text-red-700 hover:bg-red-100'
-                            : 'bg-green-50 text-green-700 hover:bg-green-100'
-                          }`}
-                      >
-                        {rider.status === 'active' ? 'Deactivate' : 'Activate'}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedRider(rider);
-                        }}
-                        className="px-4 py-2 text-xs font-bold bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-all"
-                      >
-                        View Orders
-                      </button>
-                    </div>
+            {statusFilter === 'pending' ? (
+              /* Pending Approval Queue */
+              <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {filteredRiders.length === 0 ? (
+                  <div className="col-span-full py-12 text-center text-slate-500">
+                    <span className="material-symbols-outlined text-4xl mb-2 block text-slate-300">how_to_reg</span>
+                    No pending applications
                   </div>
-                ))
-              )}
-            </div>
+                ) : (
+                  filteredRiders.map((rider) => (
+                    <div key={rider.id} className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl border border-blue-100 dark:border-blue-900/40 p-6">
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 className="font-bold text-lg text-slate-900 dark:text-white">{rider.name}</h3>
+                          <p className="text-xs text-slate-500">{rider.id} · Premium Rider</p>
+                        </div>
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tight border bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900">
+                          Pending Review
+                        </span>
+                      </div>
+
+                      {/* Contact + Vehicle */}
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="material-symbols-outlined text-[18px] text-slate-400">phone</span>
+                          <span className="text-slate-600 dark:text-slate-400">{rider.phone}</span>
+                        </div>
+                        {rider.email && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="material-symbols-outlined text-[18px] text-slate-400">email</span>
+                            <span className="text-slate-600 dark:text-slate-400">{rider.email}</span>
+                          </div>
+                        )}
+                        {rider.vehicleType && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="material-symbols-outlined text-[18px] text-slate-400">two_wheeler</span>
+                            <span className="text-slate-600 dark:text-slate-400">{rider.vehicleType}{rider.vehicleNumber ? ` · ${rider.vehicleNumber}` : ''}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* KYC Info */}
+                      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-4 space-y-2">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Identity Verification</p>
+                        {rider.nin && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-slate-500">NIN</span>
+                            <span className="font-mono font-bold text-slate-800 dark:text-white">{maskNin(rider.nin)}</span>
+                          </div>
+                        )}
+                        {rider.idType && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-slate-500">ID Type</span>
+                            <span className="font-bold text-slate-800 dark:text-white">{rider.idType}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Document Thumbnails */}
+                      {(rider.passportPhotoUrl || rider.idDocumentUrl) && (
+                        <div className="flex gap-3 mb-4">
+                          {rider.passportPhotoUrl && (
+                            <div className="flex-1">
+                              <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Passport Photo</p>
+                              <a href={rider.passportPhotoUrl} target="_blank" rel="noreferrer" className="block">
+                                <img
+                                  src={rider.passportPhotoUrl}
+                                  alt="Passport photo"
+                                  className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity"
+                                />
+                              </a>
+                            </div>
+                          )}
+                          {rider.idDocumentUrl && (
+                            <div className="flex-1">
+                              <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">ID Document</p>
+                              <a href={rider.idDocumentUrl} target="_blank" rel="noreferrer" className="block">
+                                <img
+                                  src={rider.idDocumentUrl}
+                                  alt="ID document"
+                                  className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity"
+                                />
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Reject reason input */}
+                      {rejectingId === rider.id && (
+                        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-200 dark:border-red-800">
+                          <label className="text-xs font-bold text-red-700 dark:text-red-400 uppercase block mb-1">Rejection Reason</label>
+                          <input
+                            type="text"
+                            placeholder="Enter reason for rejection..."
+                            value={rejectReason}
+                            onChange={(e) => setRejectReason(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-900 border border-red-200 dark:border-red-800 text-sm focus:ring-2 focus:ring-red-500/30 outline-none"
+                            title="Rejection reason"
+                          />
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-2">
+                        {rejectingId === rider.id ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => { setRejectingId(null); setRejectReason(''); }}
+                              className="flex-1 py-2.5 text-sm font-bold rounded-xl border border-gray-200 dark:border-gray-700 text-slate-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleReject(rider.id)}
+                              disabled={!rejectReason.trim()}
+                              className="flex-1 py-2.5 text-sm font-bold rounded-xl bg-red-600 text-white hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Confirm Reject
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setRejectingId(rider.id)}
+                              className="flex-1 py-2.5 text-sm font-bold rounded-xl border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                            >
+                              Reject
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleApprove(rider.id)}
+                              className="flex-1 py-2.5 text-sm font-bold rounded-xl bg-green-600 text-white hover:bg-green-700 transition-all"
+                            >
+                              Approve
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              /* Regular Rider Cards */
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredRiders.length === 0 ? (
+                  <div className="col-span-full py-12 text-center text-slate-500">
+                    <span className="material-symbols-outlined text-4xl mb-2 block text-slate-300">person_off</span>
+                    No riders found
+                  </div>
+                ) : (
+                  filteredRiders.map((rider) => (
+                    <div
+                      key={rider.id}
+                      className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl border border-gray-100 dark:border-gray-800 p-6 hover:shadow-lg transition-all cursor-pointer group"
+                      onClick={() => {
+                        setSelectedRider(rider);
+                        setEditRiderData(rider);
+                        setShowEditModal(true);
+                      }}
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="size-12 rounded-full bg-cover bg-center" style={{ backgroundImage: `url('https://picsum.photos/seed/${rider.name}/100/100')` }}></div>
+                          <div>
+                            <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{rider.name}</h3>
+                            <p className="text-xs text-slate-500">{rider.id}</p>
+                          </div>
+                        </div>
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tight border ${getStatusColor(rider.status)}`}>
+                          {rider.status}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="material-symbols-outlined text-[18px] text-slate-400">phone</span>
+                          <span className="text-slate-600 dark:text-slate-400">{rider.phone}</span>
+                        </div>
+                        {rider.email && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="material-symbols-outlined text-[18px] text-slate-400">email</span>
+                            <span className="text-slate-600 dark:text-slate-400">{rider.email}</span>
+                          </div>
+                        )}
+                        {rider.vehicleType && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="material-symbols-outlined text-[18px] text-slate-400">two_wheeler</span>
+                            <span className="text-slate-600 dark:text-slate-400">{rider.vehicleType}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <div className="text-center">
+                          <p className="text-2xl font-black text-primary">{rider.currentOrders}</p>
+                          <p className="text-[10px] text-slate-500 uppercase font-bold">Active</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-2xl font-black text-slate-700 dark:text-white">{rider.totalDeliveries}</p>
+                          <p className="text-[10px] text-slate-500 uppercase font-bold">Total</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-2xl font-black text-amber-600">
+                            {rider.rating.toFixed(1)}
+                            <span className="material-symbols-outlined text-[16px] align-middle ml-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                          </p>
+                          <p className="text-[10px] text-slate-500 uppercase font-bold">Rating</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleRiderStatus(rider.id, rider.status);
+                          }}
+                          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${rider.status === 'active'
+                              ? 'bg-red-50 text-red-700 hover:bg-red-100'
+                              : 'bg-green-50 text-green-700 hover:bg-green-100'
+                            }`}
+                        >
+                          {rider.status === 'active' ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedRider(rider);
+                          }}
+                          className="px-4 py-2 text-xs font-bold bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-all"
+                        >
+                          View Orders
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -266,7 +445,7 @@ const Riders: React.FC = () => {
           <div className="relative w-full max-w-lg bg-white dark:bg-[#1a202c] shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-300 border-l border-gray-200 dark:border-gray-700">
             <div className="px-6 py-4 border-b border-[#f0f2f4] dark:border-gray-800 flex items-center justify-between">
               <h2 className="text-xl font-bold">Add New Rider</h2>
-              <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+              <button type="button" onClick={() => setShowAddModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
@@ -307,6 +486,7 @@ const Riders: React.FC = () => {
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-slate-500 uppercase">Vehicle Type</label>
                 <select
+                  title="Vehicle type"
                   className="rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm"
                   value={newRider.vehicleType}
                   onChange={(e) => setNewRider({ ...newRider, vehicleType: e.target.value })}
@@ -319,8 +499,8 @@ const Riders: React.FC = () => {
               </div>
             </div>
             <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 flex gap-4">
-              <button onClick={() => setShowAddModal(false)} className="flex-1 py-3 font-bold text-sm text-slate-600 border border-slate-300 rounded-xl transition-all hover:bg-white">Cancel</button>
-              <button onClick={handleAddRider} className="flex-1 py-3 font-bold text-sm text-white bg-primary rounded-xl shadow-lg shadow-primary/20 transition-all hover:bg-primary-dark">Add Rider</button>
+              <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-3 font-bold text-sm text-slate-600 border border-slate-300 rounded-xl transition-all hover:bg-white">Cancel</button>
+              <button type="button" onClick={handleAddRider} className="flex-1 py-3 font-bold text-sm text-white bg-primary rounded-xl shadow-lg shadow-primary/20 transition-all hover:bg-primary-dark">Add Rider</button>
             </div>
           </div>
         </div>
@@ -344,7 +524,7 @@ const Riders: React.FC = () => {
                   {selectedRider.totalDeliveries} Total Deliveries • {selectedRider.rating.toFixed(1)} ⭐ Rating
                 </p>
               </div>
-              <button onClick={() => {
+              <button type="button" onClick={() => {
                 setShowEditModal(false);
                 setSelectedRider(null);
                 setEditRiderData({});
@@ -362,6 +542,8 @@ const Riders: React.FC = () => {
                     <input
                       className="rounded-lg border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
                       type="text"
+                      placeholder="Full name"
+                      title="Full name"
                       value={editRiderData.name || ''}
                       onChange={(e) => setEditRiderData({ ...editRiderData, name: e.target.value })}
                     />
@@ -371,6 +553,8 @@ const Riders: React.FC = () => {
                     <input
                       className="rounded-lg border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
                       type="tel"
+                      placeholder="Phone number"
+                      title="Phone number"
                       value={editRiderData.phone || ''}
                       onChange={(e) => setEditRiderData({ ...editRiderData, phone: e.target.value })}
                     />
@@ -380,6 +564,8 @@ const Riders: React.FC = () => {
                     <input
                       className="rounded-lg border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
                       type="email"
+                      placeholder="Email address"
+                      title="Email address"
                       value={editRiderData.email || ''}
                       onChange={(e) => setEditRiderData({ ...editRiderData, email: e.target.value })}
                     />
@@ -387,6 +573,7 @@ const Riders: React.FC = () => {
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-bold text-slate-500 uppercase">Vehicle Type</label>
                     <select
+                      title="Vehicle type"
                       className="rounded-lg border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
                       value={editRiderData.vehicleType || 'Motorcycle'}
                       onChange={(e) => setEditRiderData({ ...editRiderData, vehicleType: e.target.value })}
@@ -422,6 +609,7 @@ const Riders: React.FC = () => {
 
             <div className="p-6 border-t border-[#dbdfe6] dark:border-gray-700 bg-white dark:bg-[#1a202c] flex gap-4">
               <button
+                type="button"
                 onClick={() => {
                   if (confirm('Are you sure you want to delete this rider?')) {
                     deleteRider(selectedRider.id);
@@ -434,6 +622,7 @@ const Riders: React.FC = () => {
                 <span className="material-symbols-outlined">delete</span> Delete Rider
               </button>
               <button
+                type="button"
                 onClick={handleEditRider}
                 className="flex-1 py-4 font-black text-sm text-white bg-primary rounded-2xl shadow-xl shadow-primary/30 flex items-center justify-center gap-2 hover:bg-primary-dark"
               >
