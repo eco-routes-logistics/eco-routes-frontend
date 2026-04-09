@@ -11,6 +11,7 @@ interface ClientAuthState {
   login: (email: string, password: string) => boolean;
   logout: () => void;
   clearError: () => void;
+  setClient: (client: Client) => void;
 }
 
 export const useClientAuthStore = create<ClientAuthState>()(
@@ -56,6 +57,8 @@ export const useClientAuthStore = create<ClientAuthState>()(
       },
 
       clearError: () => set({ authError: null }),
+
+      setClient: (client) => set({ loggedInClient: client, isAuthenticated: true, authError: null }),
     }),
     {
       name: 'client-auth-storage',

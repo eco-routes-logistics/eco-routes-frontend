@@ -1,20 +1,18 @@
-import React, { useEffect } from 'react';
-import { useFinanceStore } from '@/stores/financeStore';
-import { useOrderStore } from '@/stores/orderStore';
+import React from 'react';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { useRevenueStats } from '../hooks/useFinance';
 
 const Finance: React.FC = () => {
-   const { generateTransactions, getRevenueStats } = useFinanceStore();
-   const { orders } = useOrderStore(); // To trigger updates
    const { system } = useSettingsStore();
 
    const currencySymbol = system.currency === 'NGN' ? '₦' : '£';
 
-   useEffect(() => {
-      generateTransactions();
-   }, [orders, generateTransactions]);
+   const { data, isLoading } = useRevenueStats({ period: 'monthly' });
+   const stats = data?.data?.stats;
 
-   const stats = getRevenueStats('monthly');
+   if (isLoading || !stats) {
+     return <div className="p-10 text-center">Loading Finance Data...</div>;
+   }
 
    return (
       <div className="p-6 lg:p-10 flex flex-col gap-10 max-w-7xl mx-auto overflow-y-auto">

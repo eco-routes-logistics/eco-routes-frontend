@@ -1,19 +1,20 @@
 import React, { useState, useMemo } from 'react';
-import { useClientStore } from '@/stores/clientStore';
-import type { Client } from '@/types';
+import type { Client } from '@/types/client';
 import { useOrderStore } from '@/stores/orderStore';
+import { useClients, useCreateClient, useUpdateClient, useDeleteClient } from '../hooks/useClients';
 
 
 const Clients: React.FC = () => {
-  const { clients, addClient, updateClient, deleteClient, setSelectedClient, selectedClient } = useClientStore();
+  const { data: clientsResponse, isLoading } = useClients();
+  const clients = clientsResponse?.data?.clients || [];
+  
+  const { mutate: createClient } = useCreateClient();
+  const { mutate: updateClient } = useUpdateClient();
+  const { mutate: deleteClient } = useDeleteClient();
+  
   const { orders } = useOrderStore();
-
-  console.log('DEBUG: Clients render', { clientsLength: clients?.length, ordersLength: orders?.length });
-
-  if (!clients) {
-    console.error('DEBUG: Clients is undefined');
-    return <div className="p-10 text-red-500">Error: Clients data is undefined</div>;
-  }
+  
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
   const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'suspended'>('active');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -63,19 +64,15 @@ const Clients: React.FC = () => {
       return;
     }
 
-    const client: Client = {
-      id: generateClientId(),
+    createClient({
       company: newClient.company,
       contactName: newClient.contactName,
       email: newClient.email,
       phone: newClient.phone,
       address: newClient.address,
-      totalOrders: 0,
-      activeOrders: 0,
       status: 'active',
-    };
+    });
 
-    addClient(client);
     setShowAddModal(false);
     setNewClient({
       company: '',
@@ -89,7 +86,7 @@ const Clients: React.FC = () => {
   // Handle edit client
   const handleEditClient = () => {
     if (selectedClient && editClientData) {
-      updateClient(selectedClient.id, editClientData);
+      updateClient({ id: selectedClient.id, data: editClientData });
       setShowEditModal(false);
       setSelectedClient(null);
       setEditClientData({});
@@ -246,13 +243,13 @@ const Clients: React.FC = () => {
                       {activeTab === 'pending' && (
                         <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
                           <button
-                            onClick={() => updateClient(client.id, { status: 'active' })}
+                            onClick={() => updateClient({ id: client.id, data: { status: 'active' } })}
                             className="flex-1 py-2 bg-green-600 text-white rounded-xl text-xs font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-1"
                           >
                             <span className="material-symbols-outlined text-[16px]">check_circle</span> Approve
                           </button>
                           <button
-                            onClick={() => updateClient(client.id, { status: 'suspended' })}
+                            onClick={() => updateClient({ id: client.id, data: { status: 'suspended' } })}
                             className="flex-1 py-2 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl text-xs font-bold hover:bg-red-200 transition-all flex items-center justify-center gap-1"
                           >
                             <span className="material-symbols-outlined text-[16px]">block</span> Reject
@@ -285,7 +282,7 @@ const Clients: React.FC = () => {
                       {activeTab === 'suspended' && (
                         <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                           <button
-                            onClick={() => updateClient(client.id, { status: 'active' })}
+                            onClick={() => updateClient({ id: client.id, data: { status: 'active' } })}
                             className="w-full py-2 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-all flex items-center justify-center gap-1"
                           >
                             <span className="material-symbols-outlined text-[16px]">restart_alt</span> Reactivate Account

@@ -1,9 +1,8 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useClientAuthStore } from '@/stores/clientAuthStore';
-import { useOrderStore } from '@/stores/orderStore';
-import { useWalletStore } from '@/stores/walletStore';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/axios';
 import { ORDER_STATUSES } from '@/utils/constants';
 
 const statusConfig: Record<string, { label: string; dot: string; text: string }> = {
@@ -15,27 +14,32 @@ const statusConfig: Record<string, { label: string; dot: string; text: string }>
 
 const ClientDashboard: React.FC = () => {
     const { loggedInClient } = useClientAuthStore();
-    const { orders } = useOrderStore();
-    const { getWallet } = useWalletStore();
-    const { system } = useSettingsStore();
-    const currency = system.currency === 'NGN' ? '₦' : '£';
+    const currency = '₦';
 
-    const myOrders = useMemo(
-        () => orders.filter((o) => o.businessClientId === loggedInClient?.id),
-        [orders, loggedInClient]
-    );
+    const { data: meData } = useQuery({
+        queryKey: ['client-me'],
+        queryFn: () => api.get<any, any>('/client-auth/me'),
+        enabled: !!localStorage.getItem('client_token'),
+    });
+
+    const { data: ordersData } = useQuery({
+        queryKey: ['client-orders'],
+        queryFn: () => api.get<any, any>('/client-auth/orders'),
+        enabled: !!localStorage.getItem('client_token'),
+    });
+
+    const myOrders = ordersData?.data?.orders ?? [];
+    const walletBalance = meData?.data?.walletBalance ?? 0;
 
     const stats = useMemo(() => ({
         total: myOrders.length,
-        pending: myOrders.filter((o) => o.status === ORDER_STATUSES.PENDING).length,
-        inTransit: myOrders.filter((o) => o.status === ORDER_STATUSES.IN_TRANSIT).length,
-        delivered: myOrders.filter((o) => o.status === ORDER_STATUSES.DELIVERED).length,
+        pending: myOrders.filter((o: any) => o.status === 'pending').length,
+        inTransit: myOrders.filter((o: any) => o.status === 'in_transit').length,
+        delivered: myOrders.filter((o: any) => o.status === 'delivered').length,
     }), [myOrders]);
 
-    const wallet = loggedInClient ? getWallet(loggedInClient.id) : null;
-    const balance = wallet ? wallet.balance : 0;
-
-    const recentOrders = [...myOrders].reverse().slice(0, 6);
+    const balance = walletBalance;
+    const recentOrders = [...myOrders].slice(0, 6);
     const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
     return (
@@ -154,22 +158,22 @@ const ClientDashboard: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {recentOrders.map((order, i) => {
-                                        const cfg = statusConfig[order.status];
+                                    {recentOrders.map((order: any, i: number) => {
+                                        const cfg = statusConfig[order.status] ?? statusConfig[(order.status || '').toLowerCase()];
                                         return (
-                                            <tr key={order.id} className={`border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors ${i === recentOrders.length - 1 ? 'border-none' : ''}`}>
+                                            <tr key={order._id || order.id} className={`border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors ${i === recentOrders.length - 1 ? 'border-none' : ''}`}>
                                                 <td className="px-6 py-3.5">
-                                                    <p className="font-semibold text-slate-900 dark:text-white text-[13px]">{order.id}</p>
+                                                    <p className="font-semibold text-slate-900 dark:text-white text-[13px]">{order.trackingId}</p>
                                                     <p className="text-[11px] text-slate-400">{order.deliveryLocation}</p>
                                                 </td>
-                                                <td className="px-6 py-3.5 text-[13px] text-slate-600 dark:text-gray-400">{order.customer}</td>
+                                                <td className="px-6 py-3.5 text-[13px] text-slate-600 dark:text-gray-400">{order.customerName}</td>
                                                 <td className="px-6 py-3.5">
                                                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${cfg?.text || 'bg-gray-100 text-gray-600'}`}>
                                                         <span className={`size-1.5 rounded-full ${cfg?.dot || 'bg-gray-400'}`} />
                                                         {cfg?.label || order.status}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-3.5 text-[12px] text-slate-400">{order.date}</td>
+                                                <td className="px-6 py-3.5 text-[12px] text-slate-400">{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '—'}</td>
                                             </tr>
                                         );
                                     })}

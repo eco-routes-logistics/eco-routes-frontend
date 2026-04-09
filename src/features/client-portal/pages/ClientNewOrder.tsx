@@ -1,21 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useClientAuthStore } from '@/stores/clientAuthStore';
-import { useOrderStore } from '@/stores/orderStore';
-import { useWalletStore } from '@/stores/walletStore';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/axios';
 import { DELIVERY_TYPES } from '@/utils/constants';
-import { generateOrderId, formatDate } from '@/utils/seedData';
+import toast from 'react-hot-toast';
 
 const STEPS = ['Pickup', 'Delivery', 'Package', 'Review'];
 
 const ClientNewOrder: React.FC = () => {
-    const { loggedInClient } = useClientAuthStore();
-    const { addOrder } = useOrderStore();
-    const { system } = useSettingsStore();
-    const { getWallet, addTransaction } = useWalletStore();
     const navigate = useNavigate();
-    const currencySymbol = system.currency === 'NGN' ? '₦' : '£';
+    const queryClient = useQueryClient();
+    const currencySymbol = '₦';
 
     const [step, setStep] = useState(0);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -37,12 +32,8 @@ const ClientNewOrder: React.FC = () => {
         specialInstructions: '',
     });
 
-    const wallet = loggedInClient ? getWallet(loggedInClient.id) : null;
-    const balance = wallet ? wallet.balance : 0;
-
-    // Mock delivery fee calculation based on weight + base fee
+    // Estimated fee display only — actual fee calculated server-side
     const deliveryFee = 2500 + (Number(form.weight) * 500);
-    const hasEnoughBalance = balance >= deliveryFee;
 
     const update = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
 
@@ -53,46 +44,31 @@ const ClientNewOrder: React.FC = () => {
         return true;
     };
 
-    const handleSubmit = () => {
-        if (!loggedInClient) return;
+    const handleSubmit = async () => {
         setIsSubmitting(true);
-        setTimeout(() => {
-            const orderId = generateOrderId();
-            addOrder({
-                id: orderId,
-                trackingId: `TRK-${orderId.replace('ORD-', '')}`,
-                customer: form.customerName,
-                customerPhone: form.customerPhone,
-                customerLocation: form.customerAddress,
-                businessClient: loggedInClient.company,
-                businessClientId: loggedInClient.id,
-                status: 'Pending' as any,
-                deliveryType: form.deliveryType as any,
-                weight: `${form.weight}kg`,
-                value: `${currencySymbol}${Number(form.value).toLocaleString()}`,
-                description: form.description,
-                specialInstructions: form.specialInstructions,
+        try {
+            await api.post<any, any>('/client-auth/orders', {
                 pickupLocation: form.pickupLocation,
-                deliveryLocation: form.customerAddress,
+                pickupContact: form.pickupContact,
+                pickupPhone: form.pickupPhone,
+                customerName: form.customerName,
+                customerPhone: form.customerPhone,
+                customerAddress: form.customerAddress,
                 landmark: form.landmark,
-                date: formatDate(),
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                totalFee: deliveryFee,
+                description: form.description,
+                weight: Number(form.weight),
+                value: Number(form.value),
+                deliveryType: form.deliveryType.toLowerCase().replace(' ', '_'),
+                specialInstructions: form.specialInstructions,
             });
-
-            // Deduct from wallet
-            addTransaction({
-                clientId: loggedInClient.id,
-                amount: deliveryFee,
-                type: 'debit',
-                description: `Delivery Fee for order ${orderId}`,
-                status: 'success'
-            });
-
-            setIsSubmitting(false);
+            queryClient.invalidateQueries({ queryKey: ['client-orders'] });
+            toast.success('Order placed successfully!');
             navigate('/client/orders');
-        }, 800);
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || 'Failed to place order');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const inputClass = 'w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-700 focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm font-medium outline-none transition-all';
@@ -265,15 +241,9 @@ const ClientNewOrder: React.FC = () => {
                                         <span className="text-slate-400">Delivery Fee</span>
                                         <span className="text-white font-bold">{currencySymbol}{deliveryFee.toLocaleString()}</span>
                                     </div>
-                                    <div className="flex justify-between text-sm border-b border-slate-700 pb-3">
-                                        <span className="text-slate-400">Current Wallet Balance</span>
-                                        <span className="text-white font-bold">{currencySymbol}{balance.toLocaleString()}</span>
-                                    </div>
                                     <div className="flex justify-between text-sm pt-1">
-                                        <span className="text-slate-300">Remaining Balance</span>
-                                        <span className={`font-bold ${hasEnoughBalance ? 'text-emerald-400' : 'text-red-400'}`}>
-                                            {currencySymbol}{(balance - deliveryFee).toLocaleString()}
-                                        </span>
+                                        <span className="text-slate-300">Estimated Total</span>
+                                        <span className="font-bold text-emerald-400">{currencySymbol}{deliveryFee.toLocaleString()}</span>
                                     </div>
                                 </div>
                             </div>
@@ -302,18 +272,13 @@ const ClientNewOrder: React.FC = () => {
                     ) : (
                         <button
                             onClick={handleSubmit}
-                            disabled={isSubmitting || !hasEnoughBalance}
-                            className={`flex-1 py-3 text-white rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${hasEnoughBalance
-                                    ? 'bg-green-600 shadow-lg shadow-green-600/20 hover:bg-green-700 disabled:opacity-60'
-                                    : 'bg-red-500 opacity-50 cursor-not-allowed'
-                                }`}
+                            disabled={isSubmitting}
+                            className="flex-1 py-3 text-white rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 bg-green-600 shadow-lg shadow-green-600/20 hover:bg-green-700 disabled:opacity-60"
                         >
                             {isSubmitting ? (
                                 <><span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span> Processing...</>
-                            ) : !hasEnoughBalance ? (
-                                <><span className="material-symbols-outlined text-[18px]">account_balance_wallet</span> Insufficient Funds</>
                             ) : (
-                                <><span className="material-symbols-outlined text-[18px]">check_circle</span> Pay & Place Order</>
+                                <><span className="material-symbols-outlined text-[18px]">check_circle</span> Place Order</>
                             )}
                         </button>
                     )}

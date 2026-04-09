@@ -1,11 +1,17 @@
 
 import React, { useState, useMemo } from 'react';
-import { useRiderStore, type Rider } from '@/stores/riderStore';
-import { useOrderStore } from '@/stores/orderStore';
+import type { Rider } from '@/types/rider';
+import { useRiders, useCreateRider, useUpdateRider, useDeleteRider, useRiderOrders } from '../hooks/useRiders';
 
 const Riders: React.FC = () => {
-  const { riders, addRider, updateRider, deleteRider, setSelectedRider, selectedRider } = useRiderStore();
-  const { orders } = useOrderStore();
+  const { data: ridersResponse, isLoading } = useRiders();
+  const riders = ridersResponse?.data?.riders || [];
+  
+  const { mutate: createRider } = useCreateRider();
+  const { mutate: updateRider } = useUpdateRider();
+  const { mutate: deleteRider } = useDeleteRider();
+  
+  const [selectedRider, setSelectedRider] = useState<Rider | null>(null);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -53,20 +59,11 @@ const Riders: React.FC = () => {
       return;
     }
 
-    const rider: Rider = {
-      id: generateRiderId(),
-      name: newRider.name,
-      phone: newRider.phone,
-      email: newRider.email,
-      status: 'active',
-      riderType: 'standard',
-      currentOrders: 0,
-      totalDeliveries: 0,
-      rating: 5.0,
-      vehicleType: newRider.vehicleType,
-    };
-
-    addRider(rider);
+    createRider({
+      ...newRider,
+      vehicleType: newRider.vehicleType as any,
+    });
+    
     setShowAddModal(false);
     setNewRider({
       name: '',
@@ -79,7 +76,7 @@ const Riders: React.FC = () => {
   // Handle edit rider
   const handleEditRider = () => {
     if (selectedRider && editRiderData) {
-      updateRider(selectedRider.id, editRiderData);
+      updateRider({ id: selectedRider.id, data: editRiderData });
       setShowEditModal(false);
       setSelectedRider(null);
       setEditRiderData({});
@@ -89,17 +86,17 @@ const Riders: React.FC = () => {
   // Toggle rider status
   const toggleRiderStatus = (riderId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
-    updateRider(riderId, { status: newStatus });
+    updateRider({ id: riderId, data: { status: newStatus } });
   };
 
   // Approve pending rider
   const handleApprove = (riderId: string) => {
-    updateRider(riderId, { status: 'active' });
+    updateRider({ id: riderId, data: { status: 'active' } });
   };
 
   // Reject pending rider
   const handleReject = (riderId: string) => {
-    updateRider(riderId, { status: 'rejected', rejectionReason: rejectReason });
+    updateRider({ id: riderId, data: { status: 'rejected', rejectionReason: rejectReason } });
     setRejectingId(null);
     setRejectReason('');
   };
@@ -107,10 +104,8 @@ const Riders: React.FC = () => {
   // Mask NIN
   const maskNin = (nin: string) => `${nin.slice(0, 3)}${'•'.repeat(5)}${nin.slice(-3)}`;
 
-  // Get rider's orders
-  const getRiderOrders = (riderId: string) => {
-    return orders.filter(order => order.driverId === riderId);
-  };
+  const { data: ordersResponse } = useRiderOrders(selectedRider?.id || '', { status: 'assigned' });
+  const selectedRiderOrders = selectedRider ? (ordersResponse?.data?.orders || []) : [];
 
   // Get status badge color
   const getStatusColor = (status: string) => {
@@ -589,11 +584,11 @@ const Riders: React.FC = () => {
 
               <div className="bg-primary/5 dark:bg-primary/10 p-6 rounded-2xl border border-primary/20">
                 <h4 className="text-xs font-black text-primary uppercase tracking-widest mb-4">Assigned Orders</h4>
-                {getRiderOrders(selectedRider.id).length === 0 ? (
+                {selectedRiderOrders.length === 0 ? (
                   <p className="text-sm text-slate-500">No orders currently assigned</p>
                 ) : (
                   <div className="space-y-2">
-                    {getRiderOrders(selectedRider.id).map(order => (
+                    {selectedRiderOrders.map((order: any) => (
                       <div key={order.id} className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg">
                         <div>
                           <p className="font-bold text-sm">{order.id}</p>

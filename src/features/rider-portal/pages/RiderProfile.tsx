@@ -1,43 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRiderAuthStore } from '@/stores/riderAuthStore';
-import { useRiderStore } from '@/stores/riderStore';
+import { useRiderMe, useUpdateRiderProfile } from '../hooks/useRiderAuth';
 
 const vehicleOptions = ['Motorcycle', 'Bicycle', 'Car', 'Van', 'Truck'];
 
 const RiderProfile: React.FC = () => {
-    const { loggedInRider, logout } = useRiderAuthStore();
-    const { riders, updateRider } = useRiderStore();
+    const { logout } = useRiderAuthStore();
     const navigate = useNavigate();
+    const { data: meData } = useRiderMe();
+    const { mutate: updateProfile, isPending: isSaving } = useUpdateRiderProfile();
 
-    const liveRider = riders.find((r) => r.id === loggedInRider?.id) ?? loggedInRider;
+    const liveRider = meData?.data?.rider;
 
     const [editing, setEditing] = useState(false);
     const [saved, setSaved] = useState(false);
     const [form, setForm] = useState({
-        name: liveRider?.name ?? '',
-        phone: liveRider?.phone ?? '',
-        vehicleType: liveRider?.vehicleType ?? '',
+        name: '',
+        phone: '',
+        vehicleType: '',
     });
+
+    useEffect(() => {
+        if (liveRider) {
+            setForm({ name: liveRider.name, phone: liveRider.phone, vehicleType: liveRider.vehicleType });
+        }
+    }, [liveRider]);
 
     if (!liveRider) return null;
 
-    const initials = liveRider.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+    const initials = liveRider.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
     const successRate = liveRider.totalDeliveries > 0
-        ? Math.round(((liveRider.totalDeliveries - (liveRider.currentOrders ?? 0)) / liveRider.totalDeliveries) * 100)
+        ? Math.round(((liveRider.completedOrders ?? 0) / liveRider.totalDeliveries) * 100)
         : 100;
 
     const update = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
 
     const handleSave = () => {
-        updateRider(liveRider.id, { name: form.name, phone: form.phone, vehicleType: form.vehicleType });
+        updateProfile({ name: form.name, phone: form.phone, vehicleType: form.vehicleType });
         setEditing(false);
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
     };
 
     const handleCancel = () => {
-        setForm({ name: liveRider.name, phone: liveRider.phone, vehicleType: liveRider.vehicleType ?? '' });
+        setForm({ name: liveRider.name, phone: liveRider.phone, vehicleType: liveRider.vehicleType });
         setEditing(false);
     };
 
@@ -138,8 +145,9 @@ const RiderProfile: React.FC = () => {
 
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Full Name</label>
+                        <label htmlFor="rider-name" className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Full Name</label>
                         <input
+                            id="rider-name"
                             value={form.name}
                             onChange={(e) => update('name', e.target.value)}
                             disabled={!editing}
@@ -147,16 +155,18 @@ const RiderProfile: React.FC = () => {
                         />
                     </div>
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Email</label>
+                        <label htmlFor="rider-email" className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Email</label>
                         <input
+                            id="rider-email"
                             value={liveRider.email ?? ''}
                             disabled
                             className={inputClass}
                         />
                     </div>
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Phone</label>
+                        <label htmlFor="rider-phone" className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Phone</label>
                         <input
+                            id="rider-phone"
                             value={form.phone}
                             onChange={(e) => update('phone', e.target.value)}
                             disabled={!editing}
@@ -164,9 +174,10 @@ const RiderProfile: React.FC = () => {
                         />
                     </div>
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Vehicle Type</label>
+                        <label htmlFor="rider-vehicle" className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Vehicle Type</label>
                         {editing ? (
                             <select
+                                id="rider-vehicle"
                                 value={form.vehicleType}
                                 onChange={(e) => update('vehicleType', e.target.value)}
                                 className={inputClass}
@@ -174,7 +185,7 @@ const RiderProfile: React.FC = () => {
                                 {vehicleOptions.map((v) => <option key={v} value={v}>{v}</option>)}
                             </select>
                         ) : (
-                            <input value={form.vehicleType} disabled className={inputClass} />
+                            <input id="rider-vehicle" value={form.vehicleType} disabled className={inputClass} />
                         )}
                     </div>
                 </div>
@@ -183,9 +194,10 @@ const RiderProfile: React.FC = () => {
                     <div className="flex gap-3 mt-5">
                         <button
                             onClick={handleSave}
-                            className="flex-1 py-2.5 bg-primary text-white rounded-xl text-[14px] font-bold hover:bg-primary-dark transition-all shadow-sm shadow-primary/20"
+                            disabled={isSaving}
+                            className="flex-1 py-2.5 bg-primary text-white rounded-xl text-[14px] font-bold hover:bg-primary-dark transition-all shadow-sm shadow-primary/20 disabled:opacity-60"
                         >
-                            Save Changes
+                            {isSaving ? 'Saving...' : 'Save Changes'}
                         </button>
                         <button
                             onClick={handleCancel}

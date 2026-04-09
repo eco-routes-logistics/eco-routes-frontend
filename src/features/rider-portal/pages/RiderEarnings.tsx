@@ -1,73 +1,26 @@
-import React, { useMemo } from 'react';
-import { useRiderAuthStore } from '@/stores/riderAuthStore';
-import { useRiderStore } from '@/stores/riderStore';
-import { useOrderStore } from '@/stores/orderStore';
+import React from 'react';
+import { useRiderEarnings } from '../hooks/useRiderSelf';
 
 const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(n);
 
-const isThisWeek = (dateStr: string) => {
-    const d = new Date(dateStr);
-    const now = new Date();
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
-    return d >= startOfWeek;
-};
-
-const isThisMonth = (dateStr: string) => {
-    const d = new Date(dateStr);
-    const now = new Date();
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-};
-
 const RiderEarnings: React.FC = () => {
-    const { loggedInRider } = useRiderAuthStore();
-    const { riders } = useRiderStore();
-    const { orders } = useOrderStore();
+    const { data, isLoading } = useRiderEarnings();
 
-    const liveRider = riders.find((r) => r.id === loggedInRider?.id) ?? loggedInRider;
+    const summary = data?.data?.summary;
+    const payouts = data?.data?.payouts ?? [];
 
-    const deliveredOrders = useMemo(
-        () => orders.filter((o) => o.driverId === liveRider?.id && o.status === 'Delivered'),
-        [orders, liveRider?.id]
+    if (isLoading) return (
+        <div className="flex-1 flex items-center justify-center">
+            <div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full" />
+        </div>
     );
-
-    const today = new Date().toDateString();
-
-    const todayEarnings = useMemo(
-        () => deliveredOrders
-            .filter((o) => o.deliveredAt && new Date(o.deliveredAt).toDateString() === today)
-            .reduce((sum, o) => sum + (o.totalFee ?? 0) * 0.75, 0),
-        [deliveredOrders, today]
-    );
-
-    const weekEarnings = useMemo(
-        () => deliveredOrders
-            .filter((o) => o.deliveredAt && isThisWeek(o.deliveredAt))
-            .reduce((sum, o) => sum + (o.totalFee ?? 0) * 0.75, 0),
-        [deliveredOrders]
-    );
-
-    const monthEarnings = useMemo(
-        () => deliveredOrders
-            .filter((o) => o.deliveredAt && isThisMonth(o.deliveredAt))
-            .reduce((sum, o) => sum + (o.totalFee ?? 0) * 0.75, 0),
-        [deliveredOrders]
-    );
-
-    const allTimeEarnings = useMemo(
-        () => deliveredOrders.reduce((sum, o) => sum + (o.totalFee ?? 0) * 0.75, 0),
-        [deliveredOrders]
-    );
-
-    if (!liveRider) return null;
 
     const summaryCards = [
-        { label: 'Today', value: todayEarnings, icon: 'today', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-        { label: 'This Week', value: weekEarnings, icon: 'date_range', color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
-        { label: 'This Month', value: monthEarnings, icon: 'calendar_month', color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20' },
-        { label: 'All Time', value: allTimeEarnings, icon: 'account_balance_wallet', color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+        { label: 'Today', value: summary?.today ?? 0, icon: 'today', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+        { label: 'This Week', value: summary?.thisWeek ?? 0, icon: 'date_range', color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+        { label: 'This Month', value: summary?.thisMonth ?? 0, icon: 'calendar_month', color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20' },
+        { label: 'All Time', value: summary?.allTime ?? 0, icon: 'account_balance_wallet', color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
     ];
 
     return (
@@ -103,10 +56,10 @@ const RiderEarnings: React.FC = () => {
             <div className="bg-white dark:bg-[#1a1d27] rounded-2xl border border-slate-100 dark:border-gray-800 overflow-hidden">
                 <div className="px-5 py-4 border-b border-slate-100 dark:border-gray-800">
                     <p className="font-bold text-slate-800 dark:text-white text-[15px]">Delivery Payouts</p>
-                    <p className="text-slate-400 text-[12px] mt-0.5">{deliveredOrders.length} completed deliveries</p>
+                    <p className="text-slate-400 text-[12px] mt-0.5">{payouts.length} completed deliveries</p>
                 </div>
 
-                {deliveredOrders.length === 0 ? (
+                {payouts.length === 0 ? (
                     <div className="py-16 text-center">
                         <span className="material-symbols-outlined text-[48px] text-slate-300 dark:text-gray-600" style={{ fontVariationSettings: "'FILL' 1" }}>payments</span>
                         <p className="text-slate-600 dark:text-gray-400 font-semibold mt-3">No earnings yet</p>
@@ -124,26 +77,26 @@ const RiderEarnings: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-gray-800">
-                            {deliveredOrders.map((order) => (
-                                <tr key={order.id} className="hover:bg-slate-50 dark:hover:bg-gray-800/50 transition-colors">
+                            {payouts.map((payout) => (
+                                <tr key={payout.orderId} className="hover:bg-slate-50 dark:hover:bg-gray-800/50 transition-colors">
                                     <td className="px-5 py-3">
-                                        <p className="font-bold text-slate-800 dark:text-white text-[13px]">{order.trackingId}</p>
-                                        <p className="text-slate-400 text-[11px]">{order.deliveryType}</p>
+                                        <p className="font-bold text-slate-800 dark:text-white text-[13px]">{payout.trackingId}</p>
+                                        <p className="text-slate-400 text-[11px]">{payout.deliveryType}</p>
                                     </td>
                                     <td className="px-5 py-3">
-                                        <p className="text-[13px] text-slate-700 dark:text-gray-200">{order.pickupLocation}</p>
-                                        <p className="text-[11px] text-slate-400">→ {order.deliveryLocation}</p>
+                                        <p className="text-[13px] text-slate-700 dark:text-gray-200">{payout.pickupLocation}</p>
+                                        <p className="text-[11px] text-slate-400">→ {payout.deliveryLocation}</p>
                                     </td>
                                     <td className="px-5 py-3 text-[13px] text-slate-500">
-                                        {order.deliveredAt
-                                            ? new Date(order.deliveredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                                            : order.date}
+                                        {payout.deliveredAt
+                                            ? new Date(payout.deliveredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                            : '—'}
                                     </td>
                                     <td className="px-5 py-3 text-right text-[13px] text-slate-500">
-                                        {formatCurrency(order.totalFee ?? 0)}
+                                        {formatCurrency(payout.totalFee ?? 0)}
                                     </td>
                                     <td className="px-5 py-3 text-right">
-                                        <p className="text-[13px] font-bold text-emerald-600">{formatCurrency((order.totalFee ?? 0) * 0.75)}</p>
+                                        <p className="text-[13px] font-bold text-emerald-600">{formatCurrency(payout.riderEarnings)}</p>
                                     </td>
                                 </tr>
                             ))}
@@ -151,7 +104,7 @@ const RiderEarnings: React.FC = () => {
                         <tfoot>
                             <tr className="bg-slate-50 dark:bg-gray-800/50 border-t border-slate-100 dark:border-gray-800">
                                 <td colSpan={4} className="px-5 py-3 text-[13px] font-bold text-slate-600 dark:text-gray-300">Total Earnings</td>
-                                <td className="px-5 py-3 text-right text-[15px] font-black text-emerald-600">{formatCurrency(allTimeEarnings)}</td>
+                                <td className="px-5 py-3 text-right text-[15px] font-black text-emerald-600">{formatCurrency(summary?.allTime ?? 0)}</td>
                             </tr>
                         </tfoot>
                     </table>

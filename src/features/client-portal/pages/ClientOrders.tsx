@@ -1,34 +1,35 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useClientAuthStore } from '@/stores/clientAuthStore';
-import { useOrderStore } from '@/stores/orderStore';
-import { OrderStatus } from '@/types';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/axios';
 
 const statusConfig: Record<string, { dot: string; text: string; label: string }> = {
-    [OrderStatus.PENDING]: { dot: 'bg-amber-400', text: 'text-amber-700 bg-amber-50', label: 'Pending' },
-    [OrderStatus.IN_TRANSIT]: { dot: 'bg-blue-500', text: 'text-blue-700 bg-blue-50', label: 'In Transit' },
-    [OrderStatus.DELIVERED]: { dot: 'bg-emerald-500', text: 'text-emerald-700 bg-emerald-50', label: 'Delivered' },
-    [OrderStatus.CANCELLED]: { dot: 'bg-red-400', text: 'text-red-700 bg-red-50', label: 'Cancelled' },
+    pending: { dot: 'bg-amber-400', text: 'text-amber-700 bg-amber-50', label: 'Pending' },
+    in_transit: { dot: 'bg-blue-500', text: 'text-blue-700 bg-blue-50', label: 'In Transit' },
+    delivered: { dot: 'bg-emerald-500', text: 'text-emerald-700 bg-emerald-50', label: 'Delivered' },
+    cancelled: { dot: 'bg-red-400', text: 'text-red-700 bg-red-50', label: 'Cancelled' },
 };
 
-const filters = ['All', OrderStatus.PENDING, OrderStatus.IN_TRANSIT, OrderStatus.DELIVERED, OrderStatus.CANCELLED];
+const filters = ['All', 'pending', 'in_transit', 'delivered', 'cancelled'];
+const filterLabels: Record<string, string> = { All: 'All', pending: 'Pending', in_transit: 'In Transit', delivered: 'Delivered', cancelled: 'Cancelled' };
 
 const ClientOrders: React.FC = () => {
-    const { loggedInClient } = useClientAuthStore();
-    const { orders } = useOrderStore();
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
-    const [selectedOrder, setSelectedOrder] = useState<typeof orders[0] | null>(null);
+    const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
-    const myOrders = useMemo(
-        () => orders.filter((o) => o.businessClientId === loggedInClient?.id),
-        [orders, loggedInClient]
-    );
+    const { data: ordersData } = useQuery({
+        queryKey: ['client-orders'],
+        queryFn: () => api.get<any, any>('/client-auth/orders'),
+        enabled: !!localStorage.getItem('client_token'),
+    });
+
+    const myOrders = ordersData?.data?.orders ?? [];
 
     const filtered = useMemo(() => {
-        return myOrders.filter((o) => {
+        return myOrders.filter((o: any) => {
             const q = search.toLowerCase();
-            const matchesSearch = o.id.toLowerCase().includes(q) || o.customer.toLowerCase().includes(q) || o.deliveryLocation.toLowerCase().includes(q);
+            const matchesSearch = (o.trackingId || '').toLowerCase().includes(q) || (o.customerName || '').toLowerCase().includes(q) || (o.deliveryLocation || '').toLowerCase().includes(q);
             const matchesStatus = statusFilter === 'All' || o.status === statusFilter;
             return matchesSearch && matchesStatus;
         });
@@ -78,7 +79,7 @@ const ClientOrders: React.FC = () => {
                                                 : 'bg-gray-100 dark:bg-gray-800 text-slate-500 hover:text-slate-700 dark:hover:text-gray-300'
                                             }`}
                                     >
-                                        {f}
+                                        {filterLabels[f] ?? f}
                                     </button>
                                 ))}
                             </div>
@@ -107,19 +108,19 @@ const ClientOrders: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filtered.map((order, i) => {
+                                    {filtered.map((order: any, i: number) => {
                                         const cfg = statusConfig[order.status];
                                         return (
                                             <tr
-                                                key={order.id}
+                                                key={order._id || order.id}
                                                 onClick={() => setSelectedOrder(order)}
                                                 className={`border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-white/[0.02] cursor-pointer transition-colors ${i === filtered.length - 1 ? 'border-none' : ''}`}
                                             >
                                                 <td className="px-5 py-3.5">
-                                                    <p className="font-semibold text-slate-900 dark:text-white text-[13px]">{order.id}</p>
-                                                    <p className="text-[11px] text-slate-400">{order.trackingId}</p>
+                                                    <p className="font-semibold text-slate-900 dark:text-white text-[13px]">{order.trackingId}</p>
+                                                    <p className="text-[11px] text-slate-400">{order._id || order.id}</p>
                                                 </td>
-                                                <td className="px-5 py-3.5 text-[13px] text-slate-700 dark:text-gray-300">{order.customer}</td>
+                                                <td className="px-5 py-3.5 text-[13px] text-slate-700 dark:text-gray-300">{order.customerName}</td>
                                                 <td className="px-5 py-3.5 text-[12px] text-slate-500 max-w-[160px] truncate">{order.deliveryLocation}</td>
                                                 <td className="px-5 py-3.5 text-[12px] text-slate-500">{order.deliveryType}</td>
                                                 <td className="px-5 py-3.5">
@@ -128,7 +129,7 @@ const ClientOrders: React.FC = () => {
                                                         {cfg?.label || order.status}
                                                     </span>
                                                 </td>
-                                                <td className="px-5 py-3.5 text-[12px] text-slate-400">{order.date}</td>
+                                                <td className="px-5 py-3.5 text-[12px] text-slate-400">{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '—'}</td>
                                             </tr>
                                         );
                                     })}
@@ -148,8 +149,8 @@ const ClientOrders: React.FC = () => {
                         <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-start justify-between">
                             <div>
                                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Order Details</p>
-                                <h2 className="text-lg font-bold text-slate-900 dark:text-white">{selectedOrder.id}</h2>
-                                <p className="text-[12px] text-slate-400 mt-0.5">{selectedOrder.trackingId}</p>
+                                <h2 className="text-lg font-bold text-slate-900 dark:text-white">{selectedOrder.trackingId}</h2>
+                                <p className="text-[12px] text-slate-400 mt-0.5">{selectedOrder._id || selectedOrder.id}</p>
                             </div>
                             <button onClick={() => setSelectedOrder(null)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
                                 <span className="material-symbols-outlined text-[20px] text-slate-500">close</span>
@@ -173,15 +174,15 @@ const ClientOrders: React.FC = () => {
 
                             {/* Info rows */}
                             {[
-                                { label: 'Recipient', value: selectedOrder.customer },
+                                { label: 'Recipient', value: selectedOrder.customerName },
                                 { label: 'Phone', value: selectedOrder.customerPhone },
                                 { label: 'Pickup', value: selectedOrder.pickupLocation },
                                 { label: 'Delivery', value: selectedOrder.deliveryLocation },
                                 { label: 'Package', value: selectedOrder.description || '—' },
                                 { label: 'Weight', value: selectedOrder.weight },
-                                { label: 'Value', value: selectedOrder.value },
+                                { label: 'Value', value: `₦${Number(selectedOrder.value || 0).toLocaleString()}` },
                                 { label: 'Type', value: selectedOrder.deliveryType },
-                                { label: 'Date', value: selectedOrder.date },
+                                { label: 'Date', value: selectedOrder.createdAt ? new Date(selectedOrder.createdAt).toLocaleDateString() : '—' },
                             ].map(({ label, value }) => (
                                 <div key={label} className="flex justify-between items-start py-2.5 border-b border-gray-50 dark:border-gray-800 last:border-none">
                                     <span className="text-[12px] text-slate-400 font-medium">{label}</span>

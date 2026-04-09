@@ -1,51 +1,35 @@
 
 import React, { useMemo } from 'react';
-import { useOrderStore } from '@/stores/orderStore';
-import { useRiderStore } from '@/stores/riderStore';
-import { useClientStore } from '@/stores/clientStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { OrderStatus as OrderStatusType } from '@/types/order';
 import { OrderStatus } from '@/types';
 // @ts-ignore
 import { Link } from 'react-router-dom';
+import { useDashboardAnalytics } from '../../analytics/hooks/useAnalytics';
+import { useOrders } from '../../orders/hooks/useOrders';
 
 const Dashboard: React.FC = () => {
-  const { orders } = useOrderStore();
-  const { riders } = useRiderStore();
-  const { clients } = useClientStore();
   const { system } = useSettingsStore();
 
-  // Calculate statistics
-  const stats = useMemo(() => {
-    const totalOrders = orders.length;
-    const pendingOrders = orders.filter(o => o.status === OrderStatus.PENDING).length;
-    const inTransitOrders = orders.filter(o => o.status === OrderStatus.IN_TRANSIT).length;
-    const deliveredOrders = orders.filter(o => o.status === OrderStatus.DELIVERED).length;
-    const activeRiders = riders.filter(r => r.status === 'active').length;
-    const totalRiders = riders.length;
-    const totalClients = clients.length;
+  // Live data from backend
+  const { data: analyticsData, isLoading: analyticsLoading } = useDashboardAnalytics();
+  const { data: ordersData, isLoading: ordersLoading } = useOrders({ limit: 5 });
 
-    // Calculate revenue (mock calculation based on delivered orders)
-    const revenue = deliveredOrders * 2500; // ₦2,500 per delivery
+  const metrics = analyticsData?.data?.metrics;
+  const allOrders = ordersData?.data?.orders || [];
 
-    return {
-      totalOrders,
-      pendingOrders,
-      inTransitOrders,
-      deliveredOrders,
-      activeRiders,
-      totalRiders,
-      totalClients,
-      revenue,
-    };
-  }, [orders, riders, clients]);
+  const stats = useMemo(() => ({
+    totalOrders: metrics?.totalOrders ?? 0,
+    pendingOrders: metrics?.activeOrders ?? 0,
+    inTransitOrders: 0,
+    deliveredOrders: metrics?.completedOrders ?? 0,
+    activeRiders: 0,
+    totalRiders: 0,
+    totalClients: 0,
+    revenue: metrics?.totalRevenue ?? 0,
+  }), [metrics]);
 
-  // Get recent orders (last 5)
-  const recentOrders = useMemo(() => {
-    return [...orders]
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 5);
-  }, [orders]);
+  const recentOrders = useMemo(() => allOrders.slice(0, 5), [allOrders]);
 
   // Get status badge color
   const getStatusColor = (status: OrderStatusType) => {

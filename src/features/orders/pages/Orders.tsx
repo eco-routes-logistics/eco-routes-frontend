@@ -1,16 +1,20 @@
-
 import React, { useState, useMemo } from 'react';
-import { useOrderStore } from '@/stores/orderStore';
 import { useRiderStore } from '@/stores/riderStore';
-import type { OrderStatus as OrderStatusType } from '@/types/order';
+import type { OrderStatus as OrderStatusType, Order } from '@/types/order';
 import { OrderStatus } from '@/types';
 // @ts-ignore
 import { Link } from 'react-router-dom';
 import { useSettingsStore } from '@/stores/settingsStore';
-
+import { useOrders, useUpdateOrderStatus, useAssignRider } from '../hooks/useOrders';
 
 const Orders: React.FC = () => {
-  const { orders, updateOrderStatus, assignRider, setSelectedOrder, selectedOrder } = useOrderStore();
+  const { data: orderResponse, isLoading } = useOrders();
+  const orders = orderResponse?.data?.orders || [];
+  const { mutate: updateStatus } = useUpdateOrderStatus();
+  const { mutate: assignRiderMutation } = useAssignRider();
+  
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
   const { riders, getAvailableRiders } = useRiderStore();
   const { system } = useSettingsStore();
 
@@ -35,11 +39,7 @@ const Orders: React.FC = () => {
 
   // Handle rider assignment
   const handleAssignRider = (orderId: string, riderId: string) => {
-    const rider = riders.find(r => r.id === riderId);
-    if (rider) {
-      assignRider(orderId, riderId, rider.name);
-      updateOrderStatus(orderId, OrderStatus.IN_TRANSIT);
-    }
+    assignRiderMutation({ orderId, riderId });
   };
 
   // Get status badge color
@@ -219,7 +219,10 @@ const Orders: React.FC = () => {
                     <span className="text-sm text-slate-500">Status</span>
                     <select
                       value={selectedOrder.status}
-                      onChange={(e) => updateOrderStatus(selectedOrder.id, e.target.value as OrderStatusType)}
+                      onChange={(e) => {
+                        updateStatus({ id: selectedOrder.id, data: { status: e.target.value as OrderStatusType } });
+                        setSelectedOrder({ ...selectedOrder, status: e.target.value as OrderStatusType });
+                      }}
                       className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold focus:ring-2 focus:ring-primary/50"
                     >
                       <option value={OrderStatus.PENDING}>{OrderStatus.PENDING}</option>

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { useRiderStore } from '@/stores/riderStore';
+import { useRiderRegister } from '../hooks/useRiderAuth';
 
 const STEPS = ['Personal Info', 'Vehicle', 'Verification', 'Review'];
 
@@ -39,11 +39,10 @@ const errorInput = 'border-red-300 bg-red-50';
 const normalInput = 'border-gray-200';
 
 const RiderSignup: React.FC = () => {
-    const { addRider } = useRiderStore();
+    const { mutateAsync: register, isPending } = useRiderRegister();
     const [step, setStep] = useState(1);
     const [form, setForm] = useState<FormState>(INITIAL);
     const [errors, setErrors] = useState<FieldErrors>({});
-    const [isLoading, setIsLoading] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [showPw, setShowPw] = useState(false);
 
@@ -100,28 +99,23 @@ const RiderSignup: React.FC = () => {
     const back = () => setStep((s) => s - 1);
 
     const handleSubmit = async () => {
-        setIsLoading(true);
-        await new Promise((r) => setTimeout(r, 800));
-        addRider({
-            id: `RID-${Date.now()}`,
-            name: form.name,
-            phone: form.phone,
-            email: form.email,
-            password: form.password,
-            status: 'pending',
-            riderType: 'premium',
-            currentOrders: 0,
-            totalDeliveries: 0,
-            rating: 0,
-            vehicleType: form.vehicleType,
-            vehicleNumber: form.vehicleNumber,
-            nin: form.nin,
-            idType: form.idType,
-            idDocumentUrl: form.idDocumentUrl,
-            passportPhotoUrl: form.passportPhotoUrl,
-        });
-        setIsLoading(false);
-        setSubmitted(true);
+        try {
+            await register({
+                name: form.name,
+                phone: form.phone,
+                email: form.email,
+                password: form.password,
+                vehicleType: form.vehicleType,
+                vehicleNumber: form.vehicleNumber,
+                nin: form.nin,
+                idType: form.idType,
+                idDocument: form.idDocumentFile!,
+                passportPhoto: form.passportPhotoFile!,
+            });
+            setSubmitted(true);
+        } catch {
+            // error toast handled in hook
+        }
     };
 
     if (submitted) {
@@ -192,34 +186,34 @@ const RiderSignup: React.FC = () => {
                         <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Personal Information</p>
 
                         <div>
-                            <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">Full Name</label>
-                            <input className={`${inputClass} ${errors.name ? errorInput : normalInput}`} value={form.name} onChange={e => { set('name', e.target.value); clearError('name'); }} placeholder="John Doe" />
+                            <label htmlFor="rs-name" className="block text-[12px] font-semibold text-slate-700 mb-1.5">Full Name</label>
+                            <input id="rs-name" className={`${inputClass} ${errors.name ? errorInput : normalInput}`} value={form.name} onChange={e => { set('name', e.target.value); clearError('name'); }} placeholder="John Doe" />
                             {errors.name && <p className="text-[11px] text-red-500 mt-1">{errors.name}</p>}
                         </div>
                         <div>
-                            <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">Phone Number</label>
-                            <input className={`${inputClass} ${errors.phone ? errorInput : normalInput}`} value={form.phone} onChange={e => { set('phone', e.target.value); clearError('phone'); }} placeholder="+234 800 000 0000" type="tel" />
+                            <label htmlFor="rs-phone" className="block text-[12px] font-semibold text-slate-700 mb-1.5">Phone Number</label>
+                            <input id="rs-phone" className={`${inputClass} ${errors.phone ? errorInput : normalInput}`} value={form.phone} onChange={e => { set('phone', e.target.value); clearError('phone'); }} placeholder="+234 800 000 0000" type="tel" />
                             {errors.phone && <p className="text-[11px] text-red-500 mt-1">{errors.phone}</p>}
                         </div>
                         <div>
-                            <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">Email Address</label>
-                            <input className={`${inputClass} ${errors.email ? errorInput : normalInput}`} value={form.email} onChange={e => { set('email', e.target.value); clearError('email'); }} placeholder="john@email.com" type="email" />
+                            <label htmlFor="rs-email" className="block text-[12px] font-semibold text-slate-700 mb-1.5">Email Address</label>
+                            <input id="rs-email" className={`${inputClass} ${errors.email ? errorInput : normalInput}`} value={form.email} onChange={e => { set('email', e.target.value); clearError('email'); }} placeholder="john@email.com" type="email" />
                             {errors.email && <p className="text-[11px] text-red-500 mt-1">{errors.email}</p>}
                         </div>
                         <div>
                             <div className="flex items-center justify-between mb-1.5">
-                                <label className="block text-[12px] font-semibold text-slate-700">Password</label>
+                                <label htmlFor="rs-password" className="block text-[12px] font-semibold text-slate-700">Password</label>
                                 <button type="button" onClick={() => setShowPw(!showPw)} className="text-[11px] text-slate-400 hover:text-primary flex items-center gap-1">
                                     <span className="material-symbols-outlined text-[14px]">{showPw ? 'visibility_off' : 'visibility'}</span>
                                     {showPw ? 'Hide' : 'Show'}
                                 </button>
                             </div>
-                            <input className={`${inputClass} ${errors.password ? errorInput : normalInput}`} value={form.password} onChange={e => { set('password', e.target.value); clearError('password'); }} placeholder="Min 6 characters" type={showPw ? 'text' : 'password'} />
+                            <input id="rs-password" className={`${inputClass} ${errors.password ? errorInput : normalInput}`} value={form.password} onChange={e => { set('password', e.target.value); clearError('password'); }} placeholder="Min 6 characters" type={showPw ? 'text' : 'password'} />
                             {errors.password && <p className="text-[11px] text-red-500 mt-1">{errors.password}</p>}
                         </div>
                         <div>
-                            <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">Confirm Password</label>
-                            <input className={`${inputClass} ${errors.confirmPassword ? errorInput : normalInput}`} value={form.confirmPassword} onChange={e => { set('confirmPassword', e.target.value); clearError('confirmPassword'); }} placeholder="Repeat password" type={showPw ? 'text' : 'password'} />
+                            <label htmlFor="rs-confirm-password" className="block text-[12px] font-semibold text-slate-700 mb-1.5">Confirm Password</label>
+                            <input id="rs-confirm-password" className={`${inputClass} ${errors.confirmPassword ? errorInput : normalInput}`} value={form.confirmPassword} onChange={e => { set('confirmPassword', e.target.value); clearError('confirmPassword'); }} placeholder="Repeat password" type={showPw ? 'text' : 'password'} />
                             {errors.confirmPassword && <p className="text-[11px] text-red-500 mt-1">{errors.confirmPassword}</p>}
                         </div>
                     </div>
@@ -231,14 +225,14 @@ const RiderSignup: React.FC = () => {
                         <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Vehicle Information</p>
 
                         <div>
-                            <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">Vehicle Type</label>
-                            <select className={`${inputClass} ${normalInput}`} value={form.vehicleType} onChange={e => set('vehicleType', e.target.value)}>
+                            <label htmlFor="rs-vehicle-type" className="block text-[12px] font-semibold text-slate-700 mb-1.5">Vehicle Type</label>
+                            <select id="rs-vehicle-type" className={`${inputClass} ${normalInput}`} value={form.vehicleType} onChange={e => set('vehicleType', e.target.value)}>
                                 {VEHICLE_TYPES.map(v => <option key={v} value={v}>{v}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">Plate / Vehicle Number</label>
-                            <input className={`${inputClass} ${errors.vehicleNumber ? errorInput : normalInput}`} value={form.vehicleNumber} onChange={e => { set('vehicleNumber', e.target.value); clearError('vehicleNumber'); }} placeholder="e.g. LND 123 AB" />
+                            <label htmlFor="rs-vehicle-number" className="block text-[12px] font-semibold text-slate-700 mb-1.5">Plate / Vehicle Number</label>
+                            <input id="rs-vehicle-number" className={`${inputClass} ${errors.vehicleNumber ? errorInput : normalInput}`} value={form.vehicleNumber} onChange={e => { set('vehicleNumber', e.target.value); clearError('vehicleNumber'); }} placeholder="e.g. LND 123 AB" />
                             {errors.vehicleNumber && <p className="text-[11px] text-red-500 mt-1">{errors.vehicleNumber}</p>}
                         </div>
                     </div>
@@ -250,8 +244,9 @@ const RiderSignup: React.FC = () => {
                         <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Identity Verification</p>
 
                         <div>
-                            <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">NIN (National Identification Number)</label>
+                            <label htmlFor="rs-nin" className="block text-[12px] font-semibold text-slate-700 mb-1.5">NIN (National Identification Number)</label>
                             <input
+                                id="rs-nin"
                                 className={`${inputClass} ${errors.nin ? errorInput : normalInput}`}
                                 value={form.nin}
                                 onChange={e => { set('nin', e.target.value); clearError('nin'); }}
@@ -262,8 +257,8 @@ const RiderSignup: React.FC = () => {
                         </div>
 
                         <div>
-                            <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">ID Document Type</label>
-                            <select className={`${inputClass} ${errors.idType ? errorInput : normalInput}`} value={form.idType} onChange={e => { set('idType', e.target.value); clearError('idType'); }}>
+                            <label htmlFor="rs-id-type" className="block text-[12px] font-semibold text-slate-700 mb-1.5">ID Document Type</label>
+                            <select id="rs-id-type" className={`${inputClass} ${errors.idType ? errorInput : normalInput}`} value={form.idType} onChange={e => { set('idType', e.target.value); clearError('idType'); }}>
                                 <option value="">Select ID type</option>
                                 {ID_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                             </select>
@@ -272,8 +267,8 @@ const RiderSignup: React.FC = () => {
 
                         {/* ID Document upload */}
                         <div>
-                            <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">ID Document Photo</label>
-                            <input ref={idDocRef} type="file" accept="image/*" className="hidden" onChange={e => handleFileChange(e, 'idDocumentFile', 'idDocumentUrl')} />
+                            <label htmlFor="rs-id-doc" className="block text-[12px] font-semibold text-slate-700 mb-1.5">ID Document Photo</label>
+                            <input id="rs-id-doc" ref={idDocRef} type="file" accept="image/*" className="hidden" onChange={e => handleFileChange(e, 'idDocumentFile', 'idDocumentUrl')} />
                             {form.idDocumentUrl ? (
                                 <div className="relative w-full h-32 rounded-xl overflow-hidden border border-gray-200 group">
                                     <img src={form.idDocumentUrl} alt="ID Document" className="w-full h-full object-cover" />
@@ -292,8 +287,8 @@ const RiderSignup: React.FC = () => {
 
                         {/* Passport photo upload */}
                         <div>
-                            <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">Passport Photo / Selfie</label>
-                            <input ref={passportRef} type="file" accept="image/*" className="hidden" onChange={e => handleFileChange(e, 'passportPhotoFile', 'passportPhotoUrl')} />
+                            <label htmlFor="rs-passport" className="block text-[12px] font-semibold text-slate-700 mb-1.5">Passport Photo / Selfie</label>
+                            <input id="rs-passport" ref={passportRef} type="file" accept="image/*" className="hidden" onChange={e => handleFileChange(e, 'passportPhotoFile', 'passportPhotoUrl')} />
                             {form.passportPhotoUrl ? (
                                 <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200 group">
                                     <img src={form.passportPhotoUrl} alt="Passport Photo" className="w-full h-full object-cover" />
@@ -385,8 +380,8 @@ const RiderSignup: React.FC = () => {
                             Continue
                         </button>
                     ) : (
-                        <button type="button" onClick={handleSubmit} disabled={isLoading} className="flex-1 h-11 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary-dark transition-all disabled:opacity-60 flex items-center justify-center gap-2">
-                            {isLoading ? (
+                        <button type="button" onClick={handleSubmit} disabled={isPending} className="flex-1 h-11 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary-dark transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                            {isPending ? (
                                 <>
                                     <svg className="animate-spin size-4" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

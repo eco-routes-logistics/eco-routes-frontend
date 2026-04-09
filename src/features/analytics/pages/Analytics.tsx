@@ -1,20 +1,18 @@
-import React, { useEffect } from 'react';
-import { useAnalyticsStore } from '@/stores/analyticsStore';
+import React from 'react';
+import { useDashboardAnalytics } from '../hooks/useAnalytics';
 
 const Analytics: React.FC = () => {
-   const {
-      calculateMetrics,
-      averageDeliveryTime,
-      successRate,
-      onTimeRate,
-      volumeByTime,
-      topRiders,
-      topClients
-   } = useAnalyticsStore();
+   const { data, isLoading } = useDashboardAnalytics();
 
-   useEffect(() => {
-      calculateMetrics();
-   }, [calculateMetrics]);
+   const metrics = data?.data?.metrics;
+   const volumeByTime = data?.data?.charts?.volumeByTime || [];
+   const topRiders = data?.data?.rankings?.topRiders || [];
+
+   const averageDeliveryTime = metrics?.averageDeliveryTime ?? 0;
+   const successRate = metrics?.successRate ?? 0;
+   const onTimeRate = metrics?.onTimeRate ?? 0;
+
+   if (isLoading) return <div className="p-10 text-center">Loading Analytics...</div>;
 
    return (
       <div className="p-6 lg:p-10 flex flex-col gap-10 max-w-7xl mx-auto overflow-y-auto">

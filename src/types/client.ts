@@ -9,7 +9,7 @@ export interface Client {
   accountType?: 'pay_as_you_go' | 'corporate';
   totalOrders: number;
   activeOrders: number;
-  status: 'active' | 'inactive' | 'pending';
+  status: 'active' | 'inactive' | 'pending' | 'suspended';
   password?: string; // Plain text for demo; hashed in real backend
   createdAt?: string;
 }

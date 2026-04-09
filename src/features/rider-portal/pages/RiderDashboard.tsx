@@ -1,8 +1,7 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useRiderAuthStore } from '@/stores/riderAuthStore';
-import { useRiderStore } from '@/stores/riderStore';
-import { useOrderStore } from '@/stores/orderStore';
+import { useRiderMe, useUpdateRiderStatus } from '../hooks/useRiderAuth';
+import { useRiderOrders, useRiderEarnings } from '../hooks/useRiderSelf';
 
 const statusOptions = [
     { value: 'active', label: 'Available', icon: 'check_circle', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/20' },
@@ -21,43 +20,36 @@ const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(n);
 
 const RiderDashboard: React.FC = () => {
-    const { loggedInRider } = useRiderAuthStore();
-    const { riders, updateRider } = useRiderStore();
-    const { orders } = useOrderStore();
+    const { data: meData } = useRiderMe();
+    const { mutate: updateStatus } = useUpdateRiderStatus();
+    const { data: ordersData } = useRiderOrders();
+    const { data: earningsData } = useRiderEarnings();
 
-    const liveRider = riders.find((r) => r.id === loggedInRider?.id) ?? loggedInRider;
-
-    const myOrders = useMemo(
-        () => orders.filter((o) => o.driverId === liveRider?.id),
-        [orders, liveRider?.id]
-    );
+    const liveRider = meData?.data?.rider;
+    const orders = ordersData?.data?.orders ?? [];
+    const earningsSummary = earningsData?.data?.summary;
 
     const today = new Date().toDateString();
 
     const todayDeliveries = useMemo(
-        () => myOrders.filter((o) => o.status === 'Delivered' && o.deliveredAt && new Date(o.deliveredAt).toDateString() === today),
-        [myOrders, today]
-    );
-
-    const todayEarnings = useMemo(
-        () => todayDeliveries.reduce((sum, o) => sum + (o.totalFee ?? 0) * 0.75, 0),
-        [todayDeliveries]
+        () => orders.filter((o) => o.status === 'delivered' && o.deliveredAt && new Date(o.deliveredAt).toDateString() === today),
+        [orders, today]
     );
 
     const activeDelivery = useMemo(
-        () => myOrders.find((o) => o.status === 'In Transit'),
-        [myOrders]
+        () => orders.find((o) => o.status === 'in_transit'),
+        [orders]
     );
 
     const recentDeliveries = useMemo(
-        () => myOrders.filter((o) => o.status === 'Delivered').slice(0, 5),
-        [myOrders]
+        () => orders.filter((o) => o.status === 'delivered').slice(0, 5),
+        [orders]
     );
 
     if (!liveRider) return null;
 
     const handleStatusChange = (status: 'active' | 'busy' | 'inactive') => {
-        updateRider(liveRider.id, { status });
+        updateStatus(status);
     };
 
     const statusBadge: Record<string, string> = {
@@ -107,7 +99,7 @@ const RiderDashboard: React.FC = () => {
                     },
                     {
                         label: "Today's Earnings",
-                        value: formatCurrency(todayEarnings),
+                        value: formatCurrency(earningsSummary?.today ?? 0),
                         icon: 'payments',
                         color: 'text-emerald-500',
                         bg: 'bg-emerald-50 dark:bg-emerald-900/20',
@@ -159,7 +151,7 @@ const RiderDashboard: React.FC = () => {
                             </div>
                             <div>
                                 <p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Customer</p>
-                                <p className="text-[14px] font-semibold text-slate-800 dark:text-white">{activeDelivery.customer}</p>
+                                <p className="text-[14px] font-semibold text-slate-800 dark:text-white">{activeDelivery.customerName}</p>
                             </div>
                             <div>
                                 <p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Phone</p>
@@ -203,7 +195,7 @@ const RiderDashboard: React.FC = () => {
                                     <p className="text-[12px] text-slate-400">{order.pickupLocation} → {order.deliveryLocation}</p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <p className="text-[13px] font-bold text-emerald-600">{formatCurrency((order.totalFee ?? 0) * 0.75)}</p>
+                                    <p className="text-[13px] font-bold text-emerald-600">{formatCurrency(Math.round((order.totalFee ?? 0) * 0.75))}</p>
                                     <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${statusBadge[order.status] ?? ''}`}>
                                         {order.status}
                                     </span>

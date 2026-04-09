@@ -1,27 +1,21 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useRiderAuthStore } from '@/stores/riderAuthStore';
+import { Link } from 'react-router-dom';
+import { useRiderLogin } from '../hooks/useRiderAuth';
 
 const RiderLogin: React.FC = () => {
-    const { login, authError, clearError } = useRiderAuthStore();
-    const navigate = useNavigate();
+    const { mutate: loginMutate, isPending, error } = useRiderLogin();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        clearError();
-        setIsLoading(true);
-        await new Promise((r) => setTimeout(r, 600));
-        const success = login(email.trim(), password);
-        setIsLoading(false);
-        if (success) navigate('/rider/dashboard');
+        loginMutate({ email: email.trim(), password });
     };
 
+    const authError = (error as any)?.response?.data?.message || null;
+
     const fillDemo = (demoEmail: string, demoPass: string) => {
-        clearError();
         setEmail(demoEmail);
         setPassword(demoPass);
     };
@@ -108,10 +102,10 @@ const RiderLogin: React.FC = () => {
 
                         <button
                             type="submit"
-                            disabled={isLoading}
+                            disabled={isPending}
                             className="w-full py-3 bg-primary text-white rounded-xl font-bold text-[15px] hover:bg-primary-dark transition-all shadow-lg shadow-primary/20 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
-                            {isLoading ? (
+                            {isPending ? (
                                 <>
                                     <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

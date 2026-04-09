@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useClientStore } from '@/stores/clientStore';
+import { Link } from 'react-router-dom';
+import { useClientRegisterPayAsYouGo } from '../hooks/useClientAuth';
 
 interface FormState {
     company: string;
@@ -17,11 +17,9 @@ const INITIAL: FormState = {
 };
 
 const ClientSignup: React.FC = () => {
-    const { addClient } = useClientStore();
-    const navigate = useNavigate();
+    const { mutate: register, isPending } = useClientRegisterPayAsYouGo();
     const [form, setForm] = useState<FormState>(INITIAL);
     const [errors, setErrors] = useState<Partial<FormState>>({});
-    const [isLoading, setIsLoading] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [showPw, setShowPw] = useState(false);
 
@@ -46,23 +44,10 @@ const ClientSignup: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!validate()) return;
-        setIsLoading(true);
-        await new Promise((r) => setTimeout(r, 800));
-        addClient({
-            id: `CLI-${Date.now()}`,
-            company: form.company,
-            contactName: form.contactName,
-            email: form.email,
-            phone: form.phone,
-            address: form.address,
-            password: form.password,
-            totalOrders: 0,
-            activeOrders: 0,
-            status: 'pending',
-            createdAt: new Date().toISOString(),
-        });
-        setIsLoading(false);
-        setSubmitted(true);
+        register(
+            { company: form.company, contactName: form.contactName, email: form.email, phone: form.phone, address: form.address, password: form.password },
+            { onSuccess: () => setSubmitted(true) }
+        );
     };
 
     if (submitted) {
@@ -157,10 +142,10 @@ const ClientSignup: React.FC = () => {
 
                     <button
                         type="submit"
-                        disabled={isLoading}
+                        disabled={isPending}
                         className="w-full h-11 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-700 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
                     >
-                        {isLoading ? (
+                        {isPending ? (
                             <>
                                 <svg className="animate-spin size-4 text-white" viewBox="0 0 24 24" fill="none">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

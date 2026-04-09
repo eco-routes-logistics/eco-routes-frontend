@@ -1,30 +1,22 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useClientAuthStore } from '@/stores/clientAuthStore';
+import { Link } from 'react-router-dom';
+import { useClientLogin } from '../hooks/useClientAuth';
 
 const ClientLogin: React.FC = () => {
-    const { login, authError, clearError } = useClientAuthStore();
-    const navigate = useNavigate();
+    const { mutate: loginMutate, isPending } = useClientLogin();
     const [form, setForm] = useState({ email: '', password: '' });
-    const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        clearError();
         setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        setIsLoading(true);
-        await new Promise((r) => setTimeout(r, 600));
-        const ok = login(form.email, form.password);
-        setIsLoading(false);
-        if (ok) navigate('/client/dashboard');
+        loginMutate(form);
     };
 
     const fillDemo = () => {
-        clearError();
         setForm({ email: 'orders@farmchops.com', password: 'farmchops123' });
     };
 
@@ -126,24 +118,14 @@ const ClientLogin: React.FC = () => {
                             </div>
                         </div>
 
-                        {authError && (
-                            <div className={`flex items-start gap-2.5 p-3 rounded-xl text-[12px] font-medium border ${authError.includes('awaiting')
-                                    ? 'bg-amber-50 border-amber-200 text-amber-700'
-                                    : 'bg-red-50 border-red-200 text-red-600'
-                                }`}>
-                                <span className="material-symbols-outlined text-[16px] flex-shrink-0 mt-0.5">
-                                    {authError.includes('awaiting') ? 'hourglass_top' : 'error_outline'}
-                                </span>
-                                {authError}
-                            </div>
-                        )}
+
 
                         <button
                             type="submit"
-                            disabled={isLoading}
+                            disabled={isPending}
                             className="w-full h-11 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-700 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
                         >
-                            {isLoading ? (
+                            {isPending ? (
                                 <>
                                     <svg className="animate-spin size-4 text-white" viewBox="0 0 24 24" fill="none">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

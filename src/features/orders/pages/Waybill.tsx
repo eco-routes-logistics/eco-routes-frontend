@@ -2,10 +2,16 @@
 import React from 'react';
 // @ts-ignore - Fixing "no exported member" errors which occur in some TypeScript environments with react-router-dom
 import { useParams, useNavigate } from 'react-router-dom';
+import { useOrderDetails } from '../hooks/useOrders';
 
 const Waybill: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { data, isLoading } = useOrderDetails(id as string);
+  const order = data?.data?.order;
+
+  if (isLoading) return <div className="p-8 text-center">Loading Waybill...</div>;
+  if (!order) return <div className="p-8 text-center text-red-500">Order not found</div>;
 
   return (
     <div className="min-h-screen bg-gray-200 p-8 flex flex-col items-center gap-8 no-print">
@@ -49,23 +55,19 @@ const Waybill: React.FC = () => {
         <div className="grid grid-cols-2 border-b-4 border-black">
           <div className="p-8 border-r-4 border-black h-full">
             <h3 className="text-[10px] font-black text-gray-400 uppercase mb-3">From (Sender)</h3>
-            <div className="text-base font-black mb-1">Farmchops Warehouse</div>
+            <div className="text-base font-black mb-1">{order.businessClient}</div>
             <div className="text-sm leading-tight font-medium">
-              Plot 42, Industrial Avenue,<br/>
-              Ikeja, Lagos State,<br/>
-              Nigeria
+              Registered Partner
             </div>
-            <div className="mt-4 text-xs font-bold font-mono">+234 800 123 4567</div>
+            <div className="mt-4 text-xs font-bold font-mono"></div>
           </div>
           <div className="p-8">
             <h3 className="text-[10px] font-black text-gray-400 uppercase mb-3">To (Receiver)</h3>
-            <div className="text-base font-black mb-1">Mrs. Adeola</div>
+            <div className="text-base font-black mb-1">{order.customer}</div>
             <div className="text-sm leading-tight font-medium">
-              15 Adeola Odeku Street,<br/>
-              Victoria Island (VI),<br/>
-              Lagos State
+              {order.customerLocation}
             </div>
-            <div className="mt-4 text-xs font-bold font-mono">+234 900 987 6543</div>
+            <div className="mt-4 text-xs font-bold font-mono">{order.customerPhone}</div>
           </div>
         </div>
 
@@ -88,12 +90,12 @@ const Waybill: React.FC = () => {
           <div className="flex justify-between items-start">
              <div className="max-w-[70%]">
                 <h3 className="text-[10px] font-black text-gray-400 uppercase mb-1">Content Description</h3>
-                <div className="text-xl font-black mb-1 leading-tight">5kg Premium Parboiled Rice</div>
-                <p className="text-xs font-bold text-gray-500 italic">Dry food items / Non-perishable / Fragile Handle with Care</p>
+                <div className="text-xl font-black mb-1 leading-tight">{order.description || order.weight + ' Package'}</div>
+                <p className="text-xs font-bold text-gray-500 italic">{order.specialInstructions}</p>
              </div>
              <div className="text-right">
                 <h3 className="text-[10px] font-black text-gray-400 uppercase mb-1">Value</h3>
-                <div className="text-xl font-black">₦ 12,500.00</div>
+                <div className="text-xl font-black">{order.value}</div>
              </div>
           </div>
         </div>

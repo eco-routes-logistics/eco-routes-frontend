@@ -1,23 +1,31 @@
-
 import React, { useState } from 'react';
-// @ts-ignore
 import { useNavigate } from 'react-router-dom';
+import { useLogin } from '../hooks/useAuth';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const [isScanning, setIsScanning] = useState(false);
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  
+  const loginMutation = useLogin();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate auth logic
-    navigate('/admin');
+    loginMutation.mutate({ email, password }, {
+      onSuccess: (res) => {
+        if (res.status === 'success') {
+          navigate('/admin');
+        }
+      }
+    });
   };
 
   const simulateBiometric = () => {
     setIsScanning(true);
     setTimeout(() => {
       setIsScanning(false);
+      // Dummy success for biometric
       navigate('/admin');
     }, 2000);
   };
@@ -65,13 +73,19 @@ const Login: React.FC = () => {
               <input
                 type="password"
                 required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"
                 className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl px-6 text-sm font-medium text-white focus:ring-2 focus:ring-primary focus:bg-white/10 transition-all outline-none"
               />
             </div>
 
-            <button type="submit" className="w-full h-14 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
-              Initialize Session
+            <button 
+              type="submit" 
+              disabled={loginMutation.isPending}
+              className="w-full h-14 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100"
+            >
+              {loginMutation.isPending ? 'Authenticating...' : 'Initialize Session'}
             </button>
           </form>
 

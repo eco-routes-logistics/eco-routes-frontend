@@ -1,79 +1,42 @@
-import React, { useMemo, useState } from 'react';
-import { useRiderAuthStore } from '@/stores/riderAuthStore';
-import { useRiderStore } from '@/stores/riderStore';
-import { useOrderStore } from '@/stores/orderStore';
-import type { Order } from '@/types';
+import React, { useState } from 'react';
+import { useAvailableJobs, useAcceptJob, useMarkPickedUp, useMarkDelivered, useRiderOrders } from '../hooks/useRiderSelf';
 
 const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(n);
 
 const statusBadge: Record<string, string> = {
-    Delivered: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-    'In Transit': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    Accepted: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    Cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    Failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    Pending: 'bg-slate-100 text-slate-600 dark:bg-gray-800 dark:text-gray-400',
+    delivered: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    in_transit: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    assigned: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    pending: 'bg-slate-100 text-slate-600 dark:bg-gray-800 dark:text-gray-400',
+};
+
+const statusLabel: Record<string, string> = {
+    delivered: 'Delivered',
+    in_transit: 'In Transit',
+    assigned: 'Accepted',
+    cancelled: 'Cancelled',
+    pending: 'Pending',
 };
 
 type Tab = 'available' | 'active' | 'history';
 
 const RiderDeliveries: React.FC = () => {
-    const { loggedInRider } = useRiderAuthStore();
-    const { riders, updateRider } = useRiderStore();
-    const { orders, assignRider, updateOrderStatus, updateOrder } = useOrderStore();
-
     const [activeTab, setActiveTab] = useState<Tab>('available');
     const [deliveryNote, setDeliveryNote] = useState<Record<string, string>>({});
-    const [completingId, setCompletingId] = useState<string | null>(null);
 
-    const liveRider = riders.find((r) => r.id === loggedInRider?.id) ?? loggedInRider;
+    const { data: availableData, isLoading: loadingJobs } = useAvailableJobs();
+    const { data: myOrdersData, isLoading: loadingOrders } = useRiderOrders();
+    const { mutate: acceptJob, isPending: accepting } = useAcceptJob();
+    const { mutate: markPickedUp } = useMarkPickedUp();
+    const { mutate: markDelivered, isPending: delivering } = useMarkDelivered();
 
-    const availableJobs = useMemo(
-        () => orders.filter((o) => o.status === 'Pending' && !o.driverId),
-        [orders]
-    );
+    const availableJobs = availableData?.data?.jobs ?? [];
+    const allMyOrders = myOrdersData?.data?.orders ?? [];
 
-    const activeOrders = useMemo(
-        () => orders.filter((o) => o.driverId === liveRider?.id && (o.status === 'Accepted' || o.status === 'In Transit')),
-        [orders, liveRider?.id]
-    );
-
-    const historyOrders = useMemo(
-        () => orders.filter((o) => o.driverId === liveRider?.id && (o.status === 'Delivered' || o.status === 'Cancelled' || o.status === 'Failed')),
-        [orders, liveRider?.id]
-    );
-
-    if (!liveRider) return null;
-
-    const handleAccept = (order: Order) => {
-        assignRider(order.id, liveRider.id, liveRider.name);
-        updateOrderStatus(order.id, 'Accepted');
-        updateRider(liveRider.id, { currentOrders: liveRider.currentOrders + 1, status: 'busy' });
-        setActiveTab('active');
-    };
-
-    const handlePickedUp = (orderId: string) => {
-        updateOrderStatus(orderId, 'In Transit');
-        updateOrder(orderId, { pickedUpAt: new Date().toISOString() });
-    };
-
-    const handleDeliver = async (order: Order) => {
-        setCompletingId(order.id);
-        await new Promise((r) => setTimeout(r, 500));
-        updateOrderStatus(order.id, 'Delivered');
-        updateOrder(order.id, {
-            deliveredAt: new Date().toISOString(),
-            deliveryProof: deliveryNote[order.id] ?? 'Delivered successfully.',
-        });
-        updateRider(liveRider.id, {
-            currentOrders: Math.max(0, liveRider.currentOrders - 1),
-            totalDeliveries: liveRider.totalDeliveries + 1,
-            status: liveRider.currentOrders <= 1 ? 'active' : 'busy',
-        });
-        setCompletingId(null);
-        setDeliveryNote((prev) => { const n = { ...prev }; delete n[order.id]; return n; });
-    };
+    const activeOrders = allMyOrders.filter((o) => o.status === 'assigned' || o.status === 'in_transit');
+    const historyOrders = allMyOrders.filter((o) => o.status === 'delivered' || o.status === 'cancelled');
 
     const tabs: { id: Tab; label: string; count: number }[] = [
         { id: 'available', label: 'Available Jobs', count: availableJobs.length },
@@ -110,21 +73,23 @@ const RiderDeliveries: React.FC = () => {
                 {/* Available Jobs */}
                 {activeTab === 'available' && (
                     <>
-                        {availableJobs.length === 0 ? (
+                        {loadingJobs ? (
+                            <div className="flex justify-center py-16"><div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full" /></div>
+                        ) : availableJobs.length === 0 ? (
                             <div className="text-center py-16">
                                 <span className="material-symbols-outlined text-[48px] text-slate-300 dark:text-gray-600" style={{ fontVariationSettings: "'FILL' 1" }}>search</span>
                                 <p className="text-slate-600 dark:text-gray-400 font-semibold mt-3">No jobs available</p>
                             </div>
                         ) : (
-                            availableJobs.map((order) => (
-                                <div key={order.id} className="bg-white dark:bg-[#1a1d27] rounded-2xl border border-slate-100 dark:border-gray-800 p-5 shadow-sm hover:shadow-md transition-shadow">
+                            availableJobs.map((job) => (
+                                <div key={job.id} className="bg-white dark:bg-[#1a1d27] rounded-2xl border border-slate-100 dark:border-gray-800 p-5 shadow-sm hover:shadow-md transition-shadow">
                                     <div className="flex items-start justify-between mb-4">
                                         <div>
-                                            <p className="text-[13px] font-black text-slate-400">{order.trackingId}</p>
-                                            <p className="text-[15px] font-bold text-slate-800 dark:text-white mt-0.5">{order.description ?? 'Package Delivery'}</p>
+                                            <p className="text-[13px] font-black text-slate-400">{job.trackingId}</p>
+                                            <p className="text-[15px] font-bold text-slate-800 dark:text-white mt-0.5">{job.description ?? 'Package Delivery'}</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-[18px] font-black text-emerald-600">{formatCurrency((order.totalFee ?? 0) * 0.75)}</p>
+                                            <p className="text-[18px] font-black text-emerald-600">{formatCurrency(job.estimatedRiderEarnings)}</p>
                                             <p className="text-[11px] text-slate-400 font-medium">Your earnings</p>
                                         </div>
                                     </div>
@@ -135,37 +100,32 @@ const RiderDeliveries: React.FC = () => {
                                                 <span className="material-symbols-outlined text-[14px] text-primary">location_on</span>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase">Pickup</p>
                                             </div>
-                                            <p className="text-[13px] font-semibold text-slate-700 dark:text-gray-200">{order.pickupLocation}</p>
+                                            <p className="text-[13px] font-semibold text-slate-700 dark:text-gray-200">{job.pickupLocation}</p>
                                         </div>
                                         <div className="bg-slate-50 dark:bg-gray-800/60 rounded-xl p-3">
                                             <div className="flex items-center gap-1.5 mb-1">
                                                 <span className="material-symbols-outlined text-[14px] text-blue-500">flag</span>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase">Delivery</p>
                                             </div>
-                                            <p className="text-[13px] font-semibold text-slate-700 dark:text-gray-200">{order.deliveryLocation}</p>
+                                            <p className="text-[13px] font-semibold text-slate-700 dark:text-gray-200">{job.deliveryLocation}</p>
                                         </div>
                                     </div>
 
                                     <div className="flex items-center gap-3 text-[12px] text-slate-500 mb-4">
                                         <span className="flex items-center gap-1">
                                             <span className="material-symbols-outlined text-[14px]">scale</span>
-                                            {order.weight}
+                                            {job.weight}kg
                                         </span>
                                         <span className="flex items-center gap-1">
                                             <span className="material-symbols-outlined text-[14px]">inventory_2</span>
-                                            {order.deliveryType}
+                                            {job.deliveryType}
                                         </span>
-                                        {order.value && (
-                                            <span className="flex items-center gap-1">
-                                                <span className="material-symbols-outlined text-[14px]">attach_money</span>
-                                                Value: {order.value}
-                                            </span>
-                                        )}
                                     </div>
 
                                     <button
-                                        onClick={() => handleAccept(order)}
-                                        className="w-full py-2.5 bg-primary text-white rounded-xl text-[14px] font-bold hover:bg-primary-dark transition-all shadow-sm shadow-primary/20"
+                                        onClick={() => acceptJob(job.id)}
+                                        disabled={accepting}
+                                        className="w-full py-2.5 bg-primary text-white rounded-xl text-[14px] font-bold hover:bg-primary-dark transition-all shadow-sm shadow-primary/20 disabled:opacity-60"
                                     >
                                         Accept Job
                                     </button>
@@ -178,7 +138,9 @@ const RiderDeliveries: React.FC = () => {
                 {/* Active Orders */}
                 {activeTab === 'active' && (
                     <>
-                        {activeOrders.length === 0 ? (
+                        {loadingOrders ? (
+                            <div className="flex justify-center py-16"><div className="animate-spin size-8 border-4 border-primary border-t-transparent rounded-full" /></div>
+                        ) : activeOrders.length === 0 ? (
                             <div className="text-center py-16">
                                 <span className="material-symbols-outlined text-[48px] text-slate-300 dark:text-gray-600" style={{ fontVariationSettings: "'FILL' 1" }}>local_shipping</span>
                                 <p className="text-slate-600 dark:text-gray-400 font-semibold mt-3">No active deliveries</p>
@@ -191,14 +153,16 @@ const RiderDeliveries: React.FC = () => {
                                             <span className="size-2 rounded-full bg-primary animate-pulse" />
                                             <p className="text-[13px] font-bold text-primary">{order.trackingId}</p>
                                         </div>
-                                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${statusBadge[order.status]}`}>{order.status}</span>
+                                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${statusBadge[order.status] ?? ''}`}>
+                                            {statusLabel[order.status] ?? order.status}
+                                        </span>
                                     </div>
 
                                     <div className="p-5 space-y-4">
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Customer</p>
-                                                <p className="text-[14px] font-semibold text-slate-800 dark:text-white">{order.customer}</p>
+                                                <p className="text-[14px] font-semibold text-slate-800 dark:text-white">{order.customerName}</p>
                                             </div>
                                             <div>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Phone</p>
@@ -224,7 +188,7 @@ const RiderDeliveries: React.FC = () => {
                                             </div>
                                         )}
 
-                                        {order.status === 'In Transit' && (
+                                        {order.status === 'in_transit' && (
                                             <div>
                                                 <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Delivery Note (optional)</label>
                                                 <textarea
@@ -238,24 +202,24 @@ const RiderDeliveries: React.FC = () => {
                                         )}
 
                                         <div className="flex gap-3">
-                                            {order.status === 'Accepted' && (
+                                            {order.status === 'assigned' && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => handlePickedUp(order.id)}
+                                                    onClick={() => markPickedUp(order.id)}
                                                     className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-[13px] font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
                                                 >
                                                     <span className="material-symbols-outlined text-[16px]">check_circle</span>
                                                     Mark as Picked Up
                                                 </button>
                                             )}
-                                            {order.status === 'In Transit' && (
+                                            {order.status === 'in_transit' && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleDeliver(order)}
-                                                    disabled={completingId === order.id}
+                                                    onClick={() => markDelivered({ orderId: order.id, note: deliveryNote[order.id] })}
+                                                    disabled={delivering}
                                                     className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-[13px] font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
                                                 >
-                                                    {completingId === order.id ? (
+                                                    {delivering ? (
                                                         <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
@@ -305,15 +269,17 @@ const RiderDeliveries: React.FC = () => {
                                                     <p className="text-[13px] text-slate-700 dark:text-gray-200">{order.pickupLocation}</p>
                                                     <p className="text-[11px] text-slate-400">→ {order.deliveryLocation}</p>
                                                 </td>
-                                                <td className="px-5 py-3 text-[13px] text-slate-500">{order.date}</td>
+                                                <td className="px-5 py-3 text-[13px] text-slate-500">
+                                                    {order.deliveredAt ? new Date(order.deliveredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                                                </td>
                                                 <td className="px-5 py-3 text-right">
-                                                    <p className={`text-[13px] font-bold ${order.status === 'Delivered' ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                                        {order.status === 'Delivered' ? formatCurrency((order.totalFee ?? 0) * 0.75) : '—'}
+                                                    <p className={`text-[13px] font-bold ${order.status === 'delivered' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                                        {order.status === 'delivered' ? formatCurrency(Math.round((order.totalFee ?? 0) * 0.75)) : '—'}
                                                     </p>
                                                 </td>
                                                 <td className="px-5 py-3 text-right">
                                                     <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${statusBadge[order.status] ?? ''}`}>
-                                                        {order.status}
+                                                        {statusLabel[order.status] ?? order.status}
                                                     </span>
                                                 </td>
                                             </tr>

@@ -10,6 +10,7 @@ interface RiderAuthState {
   login: (email: string, password: string) => boolean;
   logout: () => void;
   clearError: () => void;
+  setRider: (rider: Rider) => void;
 }
 
 export const useRiderAuthStore = create<RiderAuthState>()(
@@ -56,10 +57,13 @@ export const useRiderAuthStore = create<RiderAuthState>()(
       },
 
       logout: () => {
+        localStorage.removeItem('rider_token');
         set({ loggedInRider: null, isAuthenticated: false, authError: null });
       },
 
       clearError: () => set({ authError: null }),
+
+      setRider: (rider) => set({ loggedInRider: rider, isAuthenticated: true, authError: null }),
     }),
     {
       name: 'rider-auth-storage',

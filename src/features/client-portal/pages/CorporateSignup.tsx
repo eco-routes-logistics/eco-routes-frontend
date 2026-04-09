@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useClientStore } from '@/stores/clientStore';
+import { useClientRegisterCorporate } from '../hooks/useClientAuth';
 
 interface FormState {
     company: string;
@@ -17,11 +17,10 @@ const INITIAL: FormState = {
 };
 
 const CorporateSignup: React.FC = () => {
-    const { addClient } = useClientStore();
     const navigate = useNavigate();
+    const { mutateAsync: register, isPending } = useClientRegisterCorporate();
     const [form, setForm] = useState<FormState>(INITIAL);
     const [errors, setErrors] = useState<Partial<FormState>>({});
-    const [isLoading, setIsLoading] = useState(false);
     const [submitted, setSubmitted] = useState(false);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -46,24 +45,20 @@ const CorporateSignup: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!validate()) return;
-        setIsLoading(true);
-        await new Promise((r) => setTimeout(r, 800));
-        addClient({
-            id: `CLI-${Date.now()}`,
-            company: form.company,
-            contactName: form.contactName,
-            email: form.email,
-            phone: form.phone,
-            address: form.address,
-            // A corporate account requires an admin to set a password later or send an invite link.
-            password: 'PENDING_ADMIN_SETUP',
-            totalOrders: 0,
-            activeOrders: 0,
-            status: 'pending',
-            createdAt: new Date().toISOString(),
-        });
-        setIsLoading(false);
-        setSubmitted(true);
+        try {
+            await register({
+                company: form.company,
+                contactName: form.contactName,
+                email: form.email,
+                phone: form.phone,
+                address: form.address,
+                registrationNumber: form.registrationNumber,
+                estimatedMonthlyVolume: form.estimatedMonthlyVolume,
+            });
+            setSubmitted(true);
+        } catch {
+            // error toast handled in hook
+        }
     };
 
     if (submitted) {
@@ -96,9 +91,10 @@ const CorporateSignup: React.FC = () => {
         extra?: React.ReactNode
     ) => (
         <div>
-            <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">{label}</label>
+            <label htmlFor={`cs-${name}`} className="block text-[12px] font-semibold text-slate-700 mb-1.5">{label}</label>
             <div className="relative">
                 <input
+                    id={`cs-${name}`}
                     name={name}
                     type={type}
                     value={form[name]}
@@ -136,8 +132,9 @@ const CorporateSignup: React.FC = () => {
                         {field('address', 'Business address', 'text', '123 Main Street, Lagos')}
 
                         <div>
-                            <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">Estimated Monthly Deliveries</label>
+                            <label htmlFor="cs-estimatedMonthlyVolume" className="block text-[12px] font-semibold text-slate-700 mb-1.5">Estimated Monthly Deliveries</label>
                             <select
+                                id="cs-estimatedMonthlyVolume"
                                 name="estimatedMonthlyVolume"
                                 value={form.estimatedMonthlyVolume}
                                 onChange={handleChange}
@@ -163,10 +160,10 @@ const CorporateSignup: React.FC = () => {
 
                     <button
                         type="submit"
-                        disabled={isLoading}
+                        disabled={isPending}
                         className="w-full h-11 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-700 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
                     >
-                        {isLoading ? (
+                        {isPending ? (
                             <>
                                 <svg className="animate-spin size-4 text-white" viewBox="0 0 24 24" fill="none">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

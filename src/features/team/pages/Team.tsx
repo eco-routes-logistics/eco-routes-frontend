@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
-import { useTeamStore } from '@/stores/teamStore';
 import { User, UserRole } from '@/types/user';
 import { USER_ROLES } from '@/utils/constants';
+import { useTeamUsers, useCreateTeamUser, useUpdateTeamUser, useDeleteTeamUser, useToggleTeamUserStatus } from '../hooks/useTeam';
 
 const Team: React.FC = () => {
-   const { users, addUser, updateUser, deleteUser, toggleUserStatus } = useTeamStore();
+   const { data: teamResponse, isLoading } = useTeamUsers();
+   const users = teamResponse?.data?.users || [];
+   
+   const { mutate: createUser } = useCreateTeamUser();
+   const { mutate: updateUser } = useUpdateTeamUser();
+   const { mutate: deleteUser } = useDeleteTeamUser();
+   const { mutate: toggleUserStatus } = useToggleTeamUserStatus();
    const [isModalOpen, setIsModalOpen] = useState(false);
    const [editingUser, setEditingUser] = useState<User | null>(null);
    const [searchQuery, setSearchQuery] = useState('');
@@ -46,9 +52,9 @@ const Team: React.FC = () => {
    const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (editingUser) {
-         updateUser(editingUser.id, formData);
+         updateUser({ id: editingUser.id, data: formData });
       } else {
-         addUser(formData as any);
+         createUser(formData as any);
       }
       setIsModalOpen(false);
    };

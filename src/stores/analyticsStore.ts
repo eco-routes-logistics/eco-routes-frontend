@@ -72,12 +72,12 @@ export const useAnalyticsStore = create<AnalyticsState>((set) => ({
 
     // 4. Top Riders
     const sortedRiders = [...riders]
-        .sort((a, b) => b.completedOrders - a.completedOrders)
+        .sort((a, b) => ((b as any).completedOrders ?? b.totalDeliveries) - ((a as any).completedOrders ?? a.totalDeliveries))
         .slice(0, 5)
         .map(r => ({
             id: r.id,
-            name: `${r.firstName} ${r.lastName}`,
-            orders: r.completedOrders,
+            name: (r as any).firstName ? `${(r as any).firstName} ${(r as any).lastName}` : r.name,
+            orders: (r as any).completedOrders ?? r.totalDeliveries,
             rating: r.rating
         }));
 
