@@ -23,16 +23,17 @@ Authorization: Bearer <token>
 
 1. [Admin Authentication](#admin-authentication-endpoints)
 2. [Client Authentication](#client-authentication-endpoints)
-3. [Rider Authentication](#rider-authentication-endpoints) _(includes KYC self-registration)_
-4. [Orders](#orders-endpoints)
-5. [Riders (Admin)](#riders-endpoints)
-6. [Rider Self-Service](#rider-self-service-endpoints)
-7. [Clients](#clients-endpoints)
-8. [Team Management](#team-management-endpoints)
-9. [Analytics](#analytics-endpoints)
-10. [Finance](#finance-endpoints)
-11. [Wallets & Payments](#wallets--payments-endpoints)
-12. [Data Models](#data-models)
+3. [Client Portal (Protected)](#client-portal-protected-endpoints)
+4. [Rider Authentication](#rider-authentication-endpoints) _(includes KYC self-registration)_
+5. [Orders](#orders-endpoints)
+6. [Riders (Admin)](#riders-endpoints)
+7. [Rider Self-Service](#rider-self-service-endpoints)
+8. [Clients](#clients-endpoints)
+9. [Team Management](#team-management-endpoints)
+10. [Analytics](#analytics-endpoints)
+11. [Finance](#finance-endpoints)
+12. [Wallets & Payments](#wallets--payments-endpoints)
+13. [Data Models](#data-models)
 
 ---
 
@@ -264,6 +265,125 @@ Logout client.
   "message": "Logged out successfully"
 }
 ```
+
+---
+
+## Client Portal (Protected) Endpoints
+
+All endpoints below require a valid `client_token` (Bearer token from `/client-auth/login`).
+
+### GET `/client-auth/me`
+
+Get the authenticated client's profile and current wallet balance.
+
+**Auth Required:** Yes (`protectClient`)
+
+**Response:** `200 OK`
+```json
+{
+  "status": "success",
+  "data": {
+    "client": {
+      "id": "string",
+      "company": "string",
+      "contactName": "string",
+      "email": "string",
+      "phone": "string",
+      "address": "string",
+      "accountType": "pay_as_you_go" | "corporate",
+      "status": "active",
+      "totalOrders": number,
+      "activeOrders": number
+    },
+    "walletBalance": number
+  }
+}
+```
+
+### GET `/client-auth/orders`
+
+Get all orders placed by the authenticated client.
+
+**Auth Required:** Yes (`protectClient`)
+
+**Query Parameters:**
+| Param | Type | Description |
+|-------|------|-------------|
+| `status` | string | Filter by status (optional) |
+| `page` | number | Page number (default: 1) |
+| `limit` | number | Results per page (default: 50) |
+
+**Response:** `200 OK`
+```json
+{
+  "status": "success",
+  "data": {
+    "orders": [
+      {
+        "id": "string",
+        "trackingId": "string",
+        "customerName": "string",
+        "status": "string",
+        "deliveryType": "string",
+        "totalFee": number,
+        "createdAt": "string",
+        "driver": "string (optional)"
+      }
+    ],
+    "pagination": {
+      "page": number,
+      "limit": number,
+      "total": number,
+      "totalPages": number
+    }
+  }
+}
+```
+
+### POST `/client-auth/orders`
+
+Place a new delivery order. For `pay_as_you_go` accounts, the delivery fee is deducted from the wallet immediately.
+
+**Auth Required:** Yes (`protectClient`)
+
+**Request Body:**
+```json
+{
+  "pickupLocation": "string",
+  "pickupContact": "string",
+  "pickupPhone": "string",
+  "customerName": "string",
+  "customerPhone": "string",
+  "customerAddress": "string",
+  "landmark": "string (optional)",
+  "description": "string",
+  "weight": number,
+  "value": number,
+  "deliveryType": "Standard" | "Express" | "Same Day",
+  "deliveryModel": "Standard" | "Premium",
+  "specialInstructions": "string (optional)",
+  "scheduledFor": "ISO 8601 datetime (optional)"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "status": "success",
+  "message": "Order created successfully",
+  "data": {
+    "order": {
+      "id": "string",
+      "trackingId": "string",
+      "otp": "string",
+      "status": "Pending",
+      "totalFee": number
+    }
+  }
+}
+```
+
+**Error – Insufficient balance:** `402 Payment Required`
 
 ---
 
