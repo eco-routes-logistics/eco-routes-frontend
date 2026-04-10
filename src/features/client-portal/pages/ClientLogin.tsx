@@ -16,10 +16,6 @@ const ClientLogin: React.FC = () => {
         loginMutate(form);
     };
 
-    const fillDemo = () => {
-        setForm({ email: 'orders@farmchops.com', password: 'farmchops123' });
-    };
-
     return (
         <div className="min-h-screen bg-[#f7f8fa] flex">
             {/* Left panel */}
@@ -70,15 +66,6 @@ const ClientLogin: React.FC = () => {
                     <h1 className="text-2xl font-bold text-slate-900 mb-1">Sign in</h1>
                     <p className="text-sm text-slate-500 mb-8">Access your business delivery portal</p>
 
-                    {/* Demo hint */}
-                    <button
-                        type="button"
-                        onClick={fillDemo}
-                        className="w-full mb-6 py-2.5 px-4 rounded-xl border border-dashed border-slate-300 text-[12px] text-slate-500 hover:border-primary hover:text-primary transition-all flex items-center justify-center gap-2"
-                    >
-                        <span className="material-symbols-outlined text-[14px]">auto_fix_high</span>
-                        Use demo credentials
-                    </button>
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
