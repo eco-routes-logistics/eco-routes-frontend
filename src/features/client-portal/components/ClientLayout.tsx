@@ -104,17 +104,8 @@ const ClientLayout: React.FC = () => {
                         <span className="text-slate-300 dark:text-gray-600">/</span>
                         <span className="text-slate-800 dark:text-white font-semibold">{pageTitle}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <NavLink
-                            to="/client/orders/new"
-                            className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-primary text-white rounded-lg text-[13px] font-semibold hover:bg-primary-dark transition-all shadow-sm shadow-primary/20"
-                        >
-                            <span className="material-symbols-outlined text-[16px]">add</span>
-                            New Order
-                        </NavLink>
-                        <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <span className="text-primary text-[12px] font-black">{initials}</span>
-                        </div>
+                    <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <span className="text-primary text-[12px] font-black">{initials}</span>
                     </div>
                 </header>
 
