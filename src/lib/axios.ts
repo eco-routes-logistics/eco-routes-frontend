@@ -16,9 +16,9 @@ export const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const path = window.location.pathname;
-    const token = path.startsWith('/client')
+    const token = path.startsWith('/client/')
       ? localStorage.getItem('client_token')
-      : path.startsWith('/rider')
+      : path.startsWith('/rider/')
       ? localStorage.getItem('rider_token')
       : localStorage.getItem('auth_token');
     if (token) {
@@ -38,10 +38,10 @@ api.interceptors.response.use(
     // Handle 401 Unauthorized - redirect to correct login
     if (error.response?.status === 401) {
       const path = window.location.pathname;
-      if (path.startsWith('/client')) {
+      if (path.startsWith('/client/')) {
         localStorage.removeItem('client_token');
         window.location.href = '/client/login';
-      } else if (path.startsWith('/rider')) {
+      } else if (path.startsWith('/rider/')) {
         localStorage.removeItem('rider_token');
         window.location.href = '/rider/login';
       } else {
