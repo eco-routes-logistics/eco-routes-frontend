@@ -4,10 +4,10 @@ import { useLogin } from '../hooks/useAuth';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const [isScanning, setIsScanning] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
+  const [showPassword, setShowPassword] = useState(false);
+
   const loginMutation = useLogin();
 
   const handleLogin = (e: React.FormEvent) => {
@@ -19,15 +19,6 @@ const Login: React.FC = () => {
         }
       }
     });
-  };
-
-  const simulateBiometric = () => {
-    setIsScanning(true);
-    setTimeout(() => {
-      setIsScanning(false);
-      // Dummy success for biometric
-      navigate('/admin');
-    }, 2000);
   };
 
   return (
@@ -53,7 +44,7 @@ const Login: React.FC = () => {
         <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-10 shadow-2xl flex flex-col gap-8">
           <div className="space-y-2">
             <h2 className="text-xl font-bold text-white">Welcome Back</h2>
-            <p className="text-xs text-white/40 font-medium">Please authorize to access the Lagos Hub grid.</p>
+            <p className="text-xs text-white/40 font-medium">Sign in to access the admin dashboard.</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -69,15 +60,24 @@ const Login: React.FC = () => {
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black uppercase tracking-widest text-white/30 ml-4">Access Key</label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl px-6 text-sm font-medium text-white focus:ring-2 focus:ring-primary focus:bg-white/10 transition-all outline-none"
-              />
+              <label className="text-[9px] font-black uppercase tracking-widest text-white/30 ml-4">Password</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl px-6 pr-14 text-sm font-medium text-white focus:ring-2 focus:ring-primary focus:bg-white/10 transition-all outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[20px]">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                </button>
+              </div>
             </div>
 
             <button 
@@ -85,38 +85,12 @@ const Login: React.FC = () => {
               disabled={loginMutation.isPending}
               className="w-full h-14 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100"
             >
-              {loginMutation.isPending ? 'Authenticating...' : 'Initialize Session'}
+              {loginMutation.isPending ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
 
-          <div className="relative">
-            <div className="absolute inset-y-1/2 left-0 w-full h-px bg-white/10"></div>
-            <span className="relative z-10 bg-[#050b1a] px-4 mx-auto block w-fit text-[9px] font-black text-white/20 uppercase tracking-widest">or utilize biometric</span>
-          </div>
-
-          <button
-            onClick={simulateBiometric}
-            disabled={isScanning}
-            className={`w-full h-20 rounded-[1.5rem] border-2 border-dashed flex items-center justify-center gap-4 transition-all
-              ${isScanning ? 'border-primary bg-primary/5 text-primary' : 'border-white/10 hover:border-white/30 text-white/40'}
-            `}
-          >
-            <span className={`material-symbols-outlined text-4xl ${isScanning ? 'animate-pulse' : ''}`}>
-              {isScanning ? 'fingerprint' : 'face_unlock'}
-            </span>
-            <div className="text-left">
-              <p className="text-[10px] font-black uppercase tracking-widest leading-none">
-                {isScanning ? 'Scanning Identity...' : 'Fast Auth'}
-              </p>
-              <p className="text-[9px] opacity-60 mt-1">FaceID / TouchID</p>
-            </div>
-          </button>
         </div>
 
-        <div className="flex justify-center gap-8">
-          <a href="#" className="text-[9px] font-black text-white/30 uppercase tracking-widest hover:text-white transition-colors">Emergency Protocol</a>
-          <a href="#" className="text-[9px] font-black text-white/30 uppercase tracking-widest hover:text-white transition-colors">Terms of Access</a>
-        </div>
       </div>
     </div>
   );
