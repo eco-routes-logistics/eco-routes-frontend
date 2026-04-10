@@ -15,10 +15,12 @@ export const api = axios.create({
 // Request interceptor - Add auth token to all requests
 api.interceptors.request.use(
   (config) => {
-    const token =
-      localStorage.getItem('auth_token') ||
-      localStorage.getItem('client_token') ||
-      localStorage.getItem('rider_token');
+    const path = window.location.pathname;
+    const token = path.startsWith('/client')
+      ? localStorage.getItem('client_token')
+      : path.startsWith('/rider')
+      ? localStorage.getItem('rider_token')
+      : localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
