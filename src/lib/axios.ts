@@ -35,10 +35,19 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    // Handle 401 Unauthorized - redirect to login
+    // Handle 401 Unauthorized - redirect to correct login
     if (error.response?.status === 401) {
-      localStorage.removeItem('auth_token');
-      window.location.href = '/login';
+      const path = window.location.pathname;
+      if (path.startsWith('/client')) {
+        localStorage.removeItem('client_token');
+        window.location.href = '/client/login';
+      } else if (path.startsWith('/rider')) {
+        localStorage.removeItem('rider_token');
+        window.location.href = '/rider/login';
+      } else {
+        localStorage.removeItem('auth_token');
+        window.location.href = '/login';
+      }
     }
     
     // Handle 403 Forbidden
