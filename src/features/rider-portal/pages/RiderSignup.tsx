@@ -5,7 +5,12 @@ import { useRiderRegister } from '../hooks/useRiderAuth';
 const STEPS = ['Personal Info', 'Vehicle', 'Verification', 'Review'];
 
 const VEHICLE_TYPES = ['Motorcycle', 'Bicycle', 'Car', 'Van', 'Truck'];
-const ID_TYPES = ["NIN Slip", "Driver's License", "Voter's Card", "International Passport"];
+const ID_TYPES = [
+    { label: "NIN Card", value: "nin_card" },
+    { label: "Driver's License", value: "drivers_license" },
+    { label: "Voter's Card", value: "voters_card" },
+    { label: "International Passport", value: "international_passport" },
+];
 
 interface FormState {
     // Step 1
@@ -260,7 +265,7 @@ const RiderSignup: React.FC = () => {
                             <label htmlFor="rs-id-type" className="block text-[12px] font-semibold text-slate-700 mb-1.5">ID Document Type</label>
                             <select id="rs-id-type" className={`${inputClass} ${errors.idType ? errorInput : normalInput}`} value={form.idType} onChange={e => { set('idType', e.target.value); clearError('idType'); }}>
                                 <option value="">Select ID type</option>
-                                {ID_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                                {ID_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                             </select>
                             {errors.idType && <p className="text-[11px] text-red-500 mt-1">{errors.idType}</p>}
                         </div>
@@ -330,7 +335,7 @@ const RiderSignup: React.FC = () => {
                                 title: 'Identity',
                                 rows: [
                                     ['NIN', `${form.nin.slice(0, 3)}${'•'.repeat(5)}${form.nin.slice(-3)}`],
-                                    ['ID Type', form.idType],
+                                    ['ID Type', ID_TYPES.find(t => t.value === form.idType)?.label ?? form.idType],
                                 ],
                             },
                         ].map(section => (
