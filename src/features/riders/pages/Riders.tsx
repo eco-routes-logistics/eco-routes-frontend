@@ -198,7 +198,7 @@ const Riders: React.FC = () => {
                       <div className="flex items-start justify-between mb-4">
                         <div>
                           <h3 className="font-bold text-lg text-slate-900 dark:text-white">{rider.name}</h3>
-                          <p className="text-xs text-slate-500">{rider.id} · Premium Rider</p>
+                          <p className="text-xs text-slate-500">Applied {new Date(rider.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                         </div>
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tight border bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900">
                           Pending Review
@@ -237,7 +237,7 @@ const Riders: React.FC = () => {
                         {rider.idType && (
                           <div className="flex items-center justify-between text-sm">
                             <span className="text-slate-500">ID Type</span>
-                            <span className="font-bold text-slate-800 dark:text-white">{rider.idType}</span>
+                            <span className="font-bold text-slate-800 dark:text-white">{rider.idType?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
                           </div>
                         )}
                       </div>
