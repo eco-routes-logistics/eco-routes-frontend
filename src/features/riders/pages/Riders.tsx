@@ -35,8 +35,8 @@ const Riders: React.FC = () => {
   const filteredRiders = useMemo(() => {
     return riders.filter(rider => {
       const matchesSearch =
-        rider.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        rider.phone.includes(searchQuery) ||
+        (rider.name?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
+        (rider.phone?.includes(searchQuery) || false) ||
         (rider.email?.toLowerCase().includes(searchQuery.toLowerCase()) || false);
 
       const matchesStatus = statusFilter === 'All' || rider.status === statusFilter;
