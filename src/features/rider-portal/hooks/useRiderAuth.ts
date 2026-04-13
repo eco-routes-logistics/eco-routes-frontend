@@ -7,8 +7,15 @@ import { useNavigate } from 'react-router-dom';
 export const useRiderRegister = () => {
   return useMutation({
     mutationFn: riderAuthApi.register,
+    onSuccess: () => {
+      toast.success('Application submitted successfully!');
+    },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Registration failed. Please try again.');
+      const status = error?.response?.status;
+      const msg = status === 409
+        ? 'An account with this email already exists. Please log in instead.'
+        : error?.response?.data?.message || 'Registration failed. Please try again.';
+      toast.error(msg);
     },
   });
 };

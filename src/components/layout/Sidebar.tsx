@@ -31,7 +31,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { section: 'MAIN' },
     { to: '/admin', label: 'Dashboard', icon: 'grid_view' },
     { to: '/orders', label: 'Orders', icon: 'package_2' },
-    { to: '/drivers', label: 'Riders', icon: 'person_search' },
+    { to: '/riders', label: 'Riders', icon: 'person_search' },
     { to: '/clients', label: 'Clients', icon: 'business_center' },
 
     { section: 'ANALYTICS' },
