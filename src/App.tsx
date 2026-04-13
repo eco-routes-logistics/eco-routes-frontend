@@ -128,7 +128,7 @@ function App() {
                             <Route path="/admin" element={<Dashboard />} />
                             <Route path="/orders" element={<Orders />} />
                             <Route path="/waybill/:id" element={<Waybill />} />
-                            <Route path="/drivers" element={<Riders />} />
+                            <Route path="/riders" element={<Riders />} />
                             <Route path="/clients" element={<Clients />} />
                             <Route path="/analytics" element={<Analytics />} />
                             <Route path="/finance" element={<Finance />} />

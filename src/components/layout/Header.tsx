@@ -20,7 +20,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         <span className="text-[#111318] dark:text-white">Management</span>
       </div>
     );
-    if (path === '/drivers') return (
+    if (path === '/riders') return (
       <div className="flex items-center gap-2">
         <span>Fleet</span>
         <span className="material-symbols-outlined text-sm">chevron_right</span>

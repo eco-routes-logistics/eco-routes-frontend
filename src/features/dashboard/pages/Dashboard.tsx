@@ -240,7 +240,7 @@ const Dashboard: React.FC = () => {
         </Link>
 
         <Link
-          to="/drivers"
+          to="/riders"
           className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white hover:shadow-xl transition-all group"
         >
           <span className="material-symbols-outlined text-4xl mb-3 block group-hover:scale-110 transition-transform">two_wheeler</span>
