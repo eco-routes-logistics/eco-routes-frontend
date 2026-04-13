@@ -351,10 +351,10 @@ const Riders: React.FC = () => {
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
-                          <div className="size-12 rounded-full bg-cover bg-center" style={{ backgroundImage: `url('https://picsum.photos/seed/${rider.name}/100/100')` }}></div>
+                          <div className="size-12 rounded-full bg-cover bg-center bg-slate-200" style={{ backgroundImage: `url('${rider.passportPhotoUrl || `https://picsum.photos/seed/${rider.id}/100/100`}')` }}></div>
                           <div>
                             <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{rider.name}</h3>
-                            <p className="text-xs text-slate-500">{rider.id}</p>
+                            <p className="text-xs text-slate-500">{rider.vehicleType}{rider.vehicleNumber ? ` · ${rider.vehicleNumber}` : ''}</p>
                           </div>
                         </div>
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tight border ${getStatusColor(rider.status)}`}>
