@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { riderAuthApi, RiderProfile } from '../api/riderAuth';
+import { riderAuthApi, RiderProfile, withRiderName } from '../api/riderAuth';
 import { useRiderAuthStore } from '@/stores/riderAuthStore';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -28,7 +28,7 @@ export const useRiderLogin = () => {
     onSuccess: (data) => {
       const { rider, token } = data.data!;
       localStorage.setItem('rider_token', token);
-      useRiderAuthStore.getState().setRider(rider);
+      useRiderAuthStore.getState().setRider(withRiderName(rider));
       navigate('/rider/dashboard');
     },
     // Errors are shown inline on the login screen

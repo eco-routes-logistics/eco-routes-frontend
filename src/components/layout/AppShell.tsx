@@ -44,7 +44,8 @@ export const Logo: React.FC<{ product?: string; className?: string }> = ({ produ
 );
 
 export const Avatar: React.FC<{ name: string; url?: string; className?: string }> = ({ name, url, className }) => {
-    const initials = name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+    // Tolerate a missing name (e.g. stale login data) rather than crashing the whole layout
+    const initials = (name ?? '').split(' ').filter(Boolean).map((n) => n[0]).join('').toUpperCase().slice(0, 2) || '?';
     return url ? (
         <img src={url} alt="" className={cn('rounded-full object-cover bg-surface-sunken', className)} />
     ) : (

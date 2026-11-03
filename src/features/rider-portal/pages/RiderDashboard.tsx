@@ -5,6 +5,7 @@ import { formatCurrency } from '@/utils/format';
 import { useRiderMe, useUpdateRiderStatus } from '../hooks/useRiderAuth';
 import { useAvailableJobs, useRiderOrders, useRiderEarnings } from '../hooks/useRiderSelf';
 import { RouteSummary } from '../components/JobParts';
+import { withRiderName } from '../api/riderAuth';
 
 type RiderStatus = 'active' | 'busy' | 'inactive';
 
@@ -61,7 +62,7 @@ const RiderDashboard: React.FC = () => {
     return (
         <div className="space-y-6">
             <p className="text-2xl font-bold text-ink">
-                {greeting()}, {rider.name.split(' ')[0]}
+                {greeting()}, {withRiderName(rider).name.split(' ')[0]}
             </p>
 
             {/* Availability */}

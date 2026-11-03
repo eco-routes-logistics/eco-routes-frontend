@@ -24,6 +24,12 @@ export interface RiderProfile {
   passportPhotoUrl?: string;
 }
 
+/** Older API responses (rider login) omitted `name`; derive it from first/last name. */
+export const withRiderName = <T extends Partial<RiderProfile>>(r: T): T & { name: string } => ({
+  ...r,
+  name: r.name || `${r.firstName ?? ''} ${r.lastName ?? ''}`.trim() || 'Rider',
+});
+
 export interface RiderLoginResponse {
   rider: RiderProfile;
   token: string;

@@ -4,6 +4,7 @@ import { AppShell, Avatar } from '@/components/layout/AppShell';
 import { StatusBadge } from '@/components/ui';
 import { useRiderAuthStore } from '@/stores/riderAuthStore';
 import { useRiderMe } from '../hooks/useRiderAuth';
+import { withRiderName } from '../api/riderAuth';
 
 const navItems = [
     { to: '/rider/dashboard', label: 'Home', icon: 'home' },
@@ -22,7 +23,7 @@ const RiderLayout: React.FC = () => {
     }
 
     // Prefer fresh server data; fall back to what we stored at login
-    const rider = meData?.data?.rider ?? loggedInRider;
+    const rider = withRiderName(meData?.data?.rider ?? loggedInRider);
 
     const handleSignOut = () => {
         logout();
