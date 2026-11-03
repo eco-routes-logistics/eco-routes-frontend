@@ -51,7 +51,7 @@ const validate = (step: number, f: FormState): FieldErrors => {
         if (!f.name.trim()) e.name = 'Enter your full name';
         if (!f.phone.trim()) e.phone = 'Enter your phone number';
         if (!/\S+@\S+\.\S+/.test(f.email)) e.email = 'Enter a valid email';
-        if (f.password.length < 6) e.password = 'Use at least 6 characters';
+        if (f.password.length < 8) e.password = 'Use at least 8 characters';
     }
     if (step === 2 && !f.vehicleNumber.trim()) e.vehicleNumber = 'Enter your plate number';
     if (step === 3) {
@@ -232,7 +232,7 @@ const RiderSignup: React.FC = () => {
                             value={form.password}
                             onChange={(e) => set('password', e.target.value)}
                             error={errors.password}
-                            hint="At least 6 characters"
+                            hint="At least 8 characters"
                             rightIcon={
                                 <button
                                     type="button"

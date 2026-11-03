@@ -22,14 +22,6 @@ type Errors = Partial<Record<keyof FormState, string>>;
 
 const INITIAL: FormState = { company: '', contactName: '', email: '', phone: '', address: '', password: '', registrationNumber: '', estimatedMonthlyVolume: '' };
 
-// Same rules as validatePasswordStrength in the backend's validate.middleware.ts
-const PASSWORD_RULES: Array<[string, (p: string) => boolean]> = [
-    ['8+ characters', (p) => p.length >= 8],
-    ['Upper and lower case', (p) => /[A-Z]/.test(p) && /[a-z]/.test(p)],
-    ['A number', (p) => /[0-9]/.test(p)],
-    ['A symbol', (p) => /[!@#$%^&*(),.?":{}|<>\-_=+[\]\\;'`~]/.test(p)],
-];
-
 const validate = (f: FormState, type: AccountType): Errors => {
     const e: Errors = {};
     if (f.company.trim().length < 2) e.company = 'Enter your company name';
@@ -37,7 +29,8 @@ const validate = (f: FormState, type: AccountType): Errors => {
     if (!/\S+@\S+\.\S+/.test(f.email)) e.email = 'Enter a valid email';
     if (!f.phone.trim()) e.phone = 'Enter a phone number';
     if (f.address.trim().length < 5) e.address = 'Enter your business address';
-    if (type === 'payg' && !PASSWORD_RULES.every(([, ok]) => ok(f.password))) e.password = 'Password needs everything in the checklist';
+    // Mirrors the backend's validatePasswordStrength: length only
+    if (type === 'payg' && f.password.length < 8) e.password = 'Use at least 8 characters';
     if (type === 'corporate') {
         if (f.registrationNumber.trim().length < 3) e.registrationNumber = 'Enter your RC number';
         if (!f.estimatedMonthlyVolume) e.estimatedMonthlyVolume = 'Choose your monthly volume';
@@ -165,6 +158,7 @@ const ClientSignup: React.FC = () => {
                             label="Password"
                             type={showPassword ? 'text' : 'password'}
                             autoComplete="new-password"
+                            hint="At least 8 characters"
                             {...bind('password')}
                             rightIcon={
                                 <button
@@ -177,17 +171,6 @@ const ClientSignup: React.FC = () => {
                                 </button>
                             }
                         />
-                        <ul className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2" aria-label="Password requirements">
-                            {PASSWORD_RULES.map(([label, ok]) => {
-                                const met = ok(form.password);
-                                return (
-                                    <li key={label} className={cn('text-[13px] inline-flex items-center gap-1.5', met ? 'text-success' : 'text-ink-muted')}>
-                                        <Icon name={met ? 'check_circle' : 'radio_button_unchecked'} filled={met} className="text-[16px]" />
-                                        {label}
-                                    </li>
-                                );
-                            })}
-                        </ul>
                     </div>
                 ) : (
                     <>
