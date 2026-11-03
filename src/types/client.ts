@@ -1,15 +1,16 @@
+/** Business client as returned by the backend (client.model.ts). */
 export interface Client {
   id: string;
-  name?: string; // Optional as per store usage
   contactName: string;
   email: string;
   phone: string;
   company: string;
-  address: string;
+  address?: string;
   accountType?: 'pay_as_you_go' | 'corporate';
+  registrationNumber?: string;
+  estimatedMonthlyVolume?: string;
   totalOrders: number;
   activeOrders: number;
-  status: 'active' | 'inactive' | 'pending' | 'suspended';
-  password?: string; // Plain text for demo; hashed in real backend
+  status: 'active' | 'inactive' | 'pending';
   createdAt?: string;
 }

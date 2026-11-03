@@ -1,257 +1,191 @@
-import React, { useState } from 'react';
-import { User, UserRole } from '@/types/user';
-import { USER_ROLES } from '@/utils/constants';
-import { useTeamUsers, useCreateTeamUser, useUpdateTeamUser, useDeleteTeamUser, useToggleTeamUserStatus } from '../hooks/useTeam';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Avatar } from '@/components/layout/AppShell';
+import { Button, Icon, Input, Modal, PageHeader, SearchInput, Select, Skeleton, StatusBadge, Table, Td, Th, Tr } from '@/components/ui';
+import { EmptyState } from '@/components/common/EmptyState';
+import { useAuthStore } from '@/stores/authStore';
+import { User } from '@/types/user';
+import { useCreateTeamUser, useDeleteTeamUser, useTeamUsers, useToggleTeamUserStatus, useUpdateTeamUser } from '../hooks/useTeam';
+
+const ROLES = [
+    { value: 'super_admin', label: 'Super admin', hint: 'Everything, including deleting staff' },
+    { value: 'admin', label: 'Admin', hint: 'Operations, finance and team' },
+    { value: 'logistics_staff', label: 'Logistics staff', hint: 'Orders, riders and clients only' },
+];
+
+const roleLabel = (role: string) => ROLES.find((r) => r.value === role)?.label ?? role;
+
+interface MemberForm {
+    name: string;
+    email: string;
+    phone: string;
+    role: string;
+    password: string;
+}
+
+const EMPTY: MemberForm = { name: '', email: '', phone: '', role: 'logistics_staff', password: '' };
+
+const MemberModal: React.FC<{ isOpen: boolean; member: User | null; onClose: () => void }> = ({ isOpen, member, onClose }) => {
+    const [form, setForm] = useState<MemberForm>(EMPTY);
+    const { mutate: createUser, isPending: creating } = useCreateTeamUser();
+    const { mutate: updateUser, isPending: updating } = useUpdateTeamUser();
+    const editing = !!member;
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setForm(member ? { name: member.name, email: member.email, phone: member.phone, role: member.role, password: '' } : EMPTY);
+    }, [isOpen, member]);
+
+    const set = (k: keyof MemberForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.value });
+
+    const submit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (member) {
+            const { password: _password, ...rest } = form;
+            updateUser({ id: member.id, data: rest as Partial<User> }, { onSuccess: onClose });
+        } else {
+            createUser(form as unknown as Partial<User>, { onSuccess: onClose });
+        }
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={editing ? `Edit ${member?.name}` : 'Add a team member'} size="lg">
+            <form onSubmit={submit} className="space-y-4">
+                <div className="grid sm:grid-cols-2 gap-4">
+                    <Input label="Full name" value={form.name} onChange={set('name')} required />
+                    <Input label="Email" type="email" value={form.email} onChange={set('email')} required />
+                    <Input label="Phone" type="tel" value={form.phone} onChange={set('phone')} required />
+                    <Select label="Role" value={form.role} onChange={set('role')} hint={ROLES.find((r) => r.value === form.role)?.hint}>
+                        {ROLES.map((r) => (
+                            <option key={r.value} value={r.value}>{r.label}</option>
+                        ))}
+                    </Select>
+                </div>
+                {!editing && (
+                    <Input
+                        label="Temporary password"
+                        type="password"
+                        autoComplete="new-password"
+                        minLength={8}
+                        value={form.password}
+                        onChange={set('password')}
+                        hint="At least 8 characters. Share it with them securely."
+                        required
+                    />
+                )}
+                <div className="flex justify-end gap-3 pt-2">
+                    <Button variant="secondary" onClick={onClose}>Cancel</Button>
+                    <Button type="submit" isLoading={creating || updating}>{editing ? 'Save' : 'Add member'}</Button>
+                </div>
+            </form>
+        </Modal>
+    );
+};
 
 const Team: React.FC = () => {
-   const { data: teamResponse, isLoading } = useTeamUsers();
-   const users = teamResponse?.data?.users || [];
-   
-   const { mutate: createUser } = useCreateTeamUser();
-   const { mutate: updateUser } = useUpdateTeamUser();
-   const { mutate: deleteUser } = useDeleteTeamUser();
-   const { mutate: toggleUserStatus } = useToggleTeamUserStatus();
-   const [isModalOpen, setIsModalOpen] = useState(false);
-   const [editingUser, setEditingUser] = useState<User | null>(null);
-   const [searchQuery, setSearchQuery] = useState('');
-   const [roleFilter, setRoleFilter] = useState<string>('All');
+    const me = useAuthStore((s) => s.user);
+    const { data, isLoading } = useTeamUsers();
+    const { mutate: toggleStatus, isPending: toggling, variables: togglingId } = useToggleTeamUserStatus();
+    const { mutate: deleteUser, isPending: deleting } = useDeleteTeamUser();
 
-   // Form State
-   const [formData, setFormData] = useState<Partial<User>>({
-      name: '',
-      email: '',
-      phone: '',
-      role: USER_ROLES.LOGISTICS_STAFF,
-      isActive: true,
-   });
+    const [search, setSearch] = useState('');
+    const [modal, setModal] = useState<{ open: boolean; member: User | null }>({ open: false, member: null });
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-   const filteredUsers = users.filter(user => {
-      const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-         user.email.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesRole = roleFilter === 'All' || user.role === roleFilter;
-      return matchesSearch && matchesRole;
-   });
+    // Rider accounts live in their own collection; hide any legacy rider-role users here
+    const users = useMemo(() => (data?.data?.users ?? []).filter((u) => u.role !== 'rider'), [data]);
+    const visible = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        return q ? users.filter((u) => [u.name, u.email, u.phone].some((v) => v?.toLowerCase().includes(q))) : users;
+    }, [users, search]);
 
-   const handleOpenModal = (user?: User) => {
-      if (user) {
-         setEditingUser(user);
-         setFormData(user);
-      } else {
-         setEditingUser(null);
-         setFormData({
-            name: '',
-            email: '',
-            phone: '',
-            role: USER_ROLES.LOGISTICS_STAFF,
-            isActive: true,
-         });
-      }
-      setIsModalOpen(true);
-   };
+    const canDelete = me?.role === 'super_admin';
 
-   const handleSubmit = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (editingUser) {
-         updateUser({ id: editingUser.id, data: formData });
-      } else {
-         createUser(formData as any);
-      }
-      setIsModalOpen(false);
-   };
+    return (
+        <>
+            <PageHeader
+                title="Team"
+                description="Staff who can sign in to this console."
+                actions={
+                    <Button onClick={() => setModal({ open: true, member: null })} leftIcon={<Icon name="person_add" className="text-[20px]" />}>
+                        Add member
+                    </Button>
+                }
+            />
 
-   const roleColors: Record<string, string> = {
-      [USER_ROLES.SUPER_ADMIN]: 'bg-purple-100 text-purple-700',
-      [USER_ROLES.LOGISTICS_STAFF]: 'bg-blue-100 text-blue-700',
-      [USER_ROLES.BUSINESS_OWNER]: 'bg-amber-100 text-amber-700',
-      [USER_ROLES.RIDER]: 'bg-green-100 text-green-700',
-   };
+            <SearchInput value={search} onChange={setSearch} placeholder="Search by name, email or phone" className="max-w-md mb-4" />
 
-   return (
-      <div className="p-6 lg:p-10 flex flex-col gap-10 max-w-7xl mx-auto overflow-y-auto h-full">
-         <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-               <h1 className="text-3xl font-black tracking-tight text-[#111318] dark:text-white">Team Management</h1>
-               <p className="text-[#616f89] dark:text-gray-400 text-sm mt-1">
-                  Manage user roles, specialized staff, and system access permissions.
-               </p>
-            </div>
-            <button
-               onClick={() => handleOpenModal()}
-               className="bg-primary text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary-dark transition-all flex items-center gap-2"
-            >
-               <span className="material-symbols-outlined text-[18px]">add</span>
-               Add Member
-            </button>
-         </header>
+            {isLoading ? (
+                <Skeleton className="h-80" />
+            ) : visible.length === 0 ? (
+                <EmptyState icon="group" title="No team members found" />
+            ) : (
+                <Table>
+                    <thead>
+                        <tr>
+                            <Th>Member</Th>
+                            <Th>Role</Th>
+                            <Th>Phone</Th>
+                            <Th>Status</Th>
+                            <Th />
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {visible.map((u) => {
+                            const isMe = u.id === me?.id;
+                            return (
+                                <Tr key={u.id}>
+                                    <Td>
+                                        <div className="flex items-center gap-3">
+                                            <Avatar name={u.name} className="size-9 text-[13px] flex-shrink-0" />
+                                            <div className="min-w-0">
+                                                <p className="font-semibold whitespace-nowrap">
+                                                    {u.name}
+                                                    {isMe && <span className="ml-2 text-[12px] font-medium text-ink-muted">You</span>}
+                                                </p>
+                                                <p className="text-[12px] text-ink-muted">{u.email}</p>
+                                            </div>
+                                        </div>
+                                    </Td>
+                                    <Td className="whitespace-nowrap">{roleLabel(u.role)}</Td>
+                                    <Td className="text-ink-secondary whitespace-nowrap">{u.phone}</Td>
+                                    <Td>
+                                        <StatusBadge status={u.isActive ? 'active' : 'inactive'} kind="staff" />
+                                    </Td>
+                                    <Td align="right">
+                                        {confirmDeleteId === u.id ? (
+                                            <div className="flex justify-end items-center gap-2">
+                                                <span className="text-[13px] text-ink-secondary whitespace-nowrap">Delete?</span>
+                                                <Button size="sm" variant="secondary" onClick={() => setConfirmDeleteId(null)}>No</Button>
+                                                <Button size="sm" variant="danger" isLoading={deleting} onClick={() => deleteUser(u.id, { onSuccess: () => setConfirmDeleteId(null) })}>
+                                                    Delete
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex justify-end gap-1">
+                                                <Button size="sm" variant="ghost" onClick={() => setModal({ open: true, member: u })}>Edit</Button>
+                                                {!isMe && (
+                                                    <Button size="sm" variant="ghost" isLoading={toggling && togglingId === u.id} onClick={() => toggleStatus(u.id)}>
+                                                        {u.isActive ? 'Deactivate' : 'Activate'}
+                                                    </Button>
+                                                )}
+                                                {canDelete && !isMe && (
+                                                    <Button size="sm" variant="ghost" className="text-danger" onClick={() => setConfirmDeleteId(u.id)} aria-label={`Delete ${u.name}`}>
+                                                        <Icon name="delete" className="text-[18px]" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </Td>
+                                </Tr>
+                            );
+                        })}
+                    </tbody>
+                </Table>
+            )}
 
-         {/* Filters */}
-         <div className="bg-white dark:bg-[#1a202c] p-4 rounded-2xl border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row gap-4 justify-between items-center shadow-sm">
-            <div className="flex gap-2 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0">
-               {['All', ...Object.values(USER_ROLES)].map((role) => (
-                  <button
-                     key={role}
-                     onClick={() => setRoleFilter(role)}
-                     className={`px-4 py-2 rounded-lg text-xs font-bold capitalize whitespace-nowrap transition-colors ${roleFilter === role
-                        ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-                        : 'bg-slate-50 text-slate-500 hover:bg-slate-100 dark:bg-gray-800 dark:text-gray-400'
-                        }`}
-                  >
-                     {role.replace('_', ' ')}
-                  </button>
-               ))}
-            </div>
-            <div className="relative w-full sm:w-64">
-               <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
-                  <span className="material-symbols-outlined text-[18px]">search</span>
-               </span>
-               <input
-                  type="text"
-                  placeholder="Search team..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-10 pl-10 pr-4 bg-gray-50 dark:bg-gray-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/50"
-               />
-            </div>
-         </div>
-
-         {/* Team Grid */}
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredUsers.map((user) => (
-               <div key={user.id} className="bg-white dark:bg-[#1a202c] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all group relative">
-                  <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                     <button
-                        onClick={() => handleOpenModal(user)}
-                        className="size-8 rounded-lg bg-slate-100 dark:bg-gray-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-primary hover:text-white transition-colors"
-                     >
-                        <span className="material-symbols-outlined text-[16px]">edit</span>
-                     </button>
-                     <button
-                        onClick={() => deleteUser(user.id)}
-                        className="size-8 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-600 hover:bg-red-600 hover:text-white transition-colors"
-                     >
-                        <span className="material-symbols-outlined text-[16px]">delete</span>
-                     </button>
-                  </div>
-
-                  <div className="flex flex-col items-center text-center">
-                     <div className="relative">
-                        <img
-                           src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random`}
-                           alt={user.name}
-                           className="size-20 rounded-full object-cover border-4 border-slate-50 dark:border-gray-800 mb-4"
-                        />
-                        <span className={`absolute bottom-4 right-0 size-4 rounded-full border-2 border-white dark:border-gray-800 ${user.isActive ? 'bg-green-500' : 'bg-slate-300'}`}></span>
-                     </div>
-                     <h3 className="font-black text-lg text-slate-900 dark:text-white mb-1">{user.name}</h3>
-                     <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wide mb-4 ${roleColors[user.role] || 'bg-gray-100 text-gray-600'}`}>
-                        {user.role.replace('_', ' ')}
-                     </span>
-
-                     <div className="w-full space-y-3 mt-2">
-                        <a href={`mailto:${user.email}`} className="flex items-center gap-3 text-sm text-slate-500 dark:text-gray-400 hover:text-primary transition-colors p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-gray-800/50">
-                           <span className="material-symbols-outlined text-[18px]">mail</span>
-                           <span className="truncate">{user.email}</span>
-                        </a>
-                        <a href={`tel:${user.phone}`} className="flex items-center gap-3 text-sm text-slate-500 dark:text-gray-400 hover:text-primary transition-colors p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-gray-800/50">
-                           <span className="material-symbols-outlined text-[18px]">call</span>
-                           <span className="truncate">{user.phone}</span>
-                        </a>
-                     </div>
-
-                     <button
-                        onClick={() => toggleUserStatus(user.id)}
-                        className={`mt-6 w-full py-2 rounded-xl text-xs font-bold border transition-all ${user.isActive
-                              ? 'border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-gray-700 dark:hover:bg-gray-800'
-                              : 'border-green-200 text-green-600 bg-green-50 hover:bg-green-100 dark:bg-green-900/10'
-                           }`}
-                     >
-                        {user.isActive ? 'Deactivate Account' : 'Activate Account'}
-                     </button>
-                  </div>
-               </div>
-            ))}
-         </div>
-
-         {/* Edit/Add Modal */}
-         {isModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-               <div className="bg-white dark:bg-[#1a202c] rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-                  <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
-                     <h2 className="text-xl font-black">{editingUser ? 'Edit Member' : 'Add New Member'}</h2>
-                     <button onClick={() => setIsModalOpen(false)} className="size-8 rounded-full bg-slate-100 dark:bg-gray-800 flex items-center justify-center hover:bg-slate-200 transition-colors">
-                        <span className="material-symbols-outlined text-sm">close</span>
-                     </button>
-                  </div>
-                  <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Full Name</label>
-                        <input
-                           required
-                           type="text"
-                           value={formData.name}
-                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                           className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-gray-900 border-none focus:ring-2 focus:ring-primary/50 font-bold"
-                           placeholder="e.g. John Doe"
-                        />
-                     </div>
-                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email Address</label>
-                        <input
-                           required
-                           type="email"
-                           value={formData.email}
-                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                           className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-gray-900 border-none focus:ring-2 focus:ring-primary/50 font-bold"
-                           placeholder="john@ecoroutes.com"
-                        />
-                     </div>
-                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                           <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phone Number</label>
-                           <input
-                              required
-                              type="tel"
-                              value={formData.phone}
-                              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                              className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-gray-900 border-none focus:ring-2 focus:ring-primary/50 font-bold"
-                              placeholder="+234..."
-                           />
-                        </div>
-                        <div>
-                           <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Role</label>
-                           <select
-                              value={formData.role}
-                              onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
-                              className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-gray-900 border-none focus:ring-2 focus:ring-primary/50 font-bold"
-                           >
-                              {Object.values(USER_ROLES).map(role => (
-                                 <option key={role} value={role}>{role.replace('_', ' ')}</option>
-                              ))}
-                           </select>
-                        </div>
-                     </div>
-
-                     <div className="pt-4 flex gap-3">
-                        <button
-                           type="button"
-                           onClick={() => setIsModalOpen(false)}
-                           className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-colors"
-                        >
-                           Cancel
-                        </button>
-                        <button
-                           type="submit"
-                           className="flex-1 py-3 rounded-xl font-bold bg-primary text-white hover:bg-primary-dark shadow-lg shadow-primary/20 transition-all"
-                        >
-                           {editingUser ? 'Save Changes' : 'Create Member'}
-                        </button>
-                     </div>
-                  </form>
-               </div>
-            </div>
-         )}
-      </div>
-   );
+            <MemberModal isOpen={modal.open} member={modal.member} onClose={() => setModal({ open: false, member: null })} />
+        </>
+    );
 };
 
 export default Team;

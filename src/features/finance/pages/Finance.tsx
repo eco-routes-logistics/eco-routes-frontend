@@ -1,131 +1,181 @@
-import React from 'react';
-import { useSettingsStore } from '@/stores/settingsStore';
-import { useRevenueStats } from '../hooks/useFinance';
+import React, { useEffect, useState } from 'react';
+import { Badge, Button, Card, FilterChips, Modal, Pagination, PageHeader, SectionTitle, SegmentedControl, Skeleton, StatusBadge, Table, Td, Textarea, Th, Tr } from '@/components/ui';
+import { EmptyState } from '@/components/common/EmptyState';
+import { formatCurrency, formatDate } from '@/utils/format';
+import { Transaction } from '../api/finance';
+import { useDisputeTransaction, useProcessTransaction, useRevenueStats, useTransactions } from '../hooks/useFinance';
+
+type Period = 'daily' | 'weekly' | 'monthly' | 'yearly';
+type TxFilter = 'all' | 'Pending' | 'Processed' | 'Disputed';
+
+// Ranges match finance.controller.ts getRevenueStats
+const PERIOD_LABELS: Record<Period, string> = {
+    daily: 'Last 30 days',
+    weekly: 'Last 12 weeks',
+    monthly: 'Last 12 months',
+    yearly: 'Since 2 years ago',
+};
+
+const PAGE_SIZE = 20;
+
+const DisputeModal: React.FC<{ tx: Transaction | null; onClose: () => void }> = ({ tx, onClose }) => {
+    const [reason, setReason] = useState('');
+    const { mutate: dispute, isPending } = useDisputeTransaction();
+    useEffect(() => setReason(''), [tx?.id]);
+
+    return (
+        <Modal isOpen={!!tx} onClose={onClose} title="Flag as disputed" description={tx && `${tx.clientName} · ${formatCurrency(tx.totalFee)}`} size="sm">
+            <form
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    if (tx) dispute({ id: tx.id, reason: reason.trim() }, { onSuccess: onClose });
+                }}
+            >
+                <Textarea label="What's wrong?" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Client says the parcel was never delivered" required />
+                <div className="flex justify-end gap-3 mt-6">
+                    <Button variant="secondary" onClick={onClose}>Cancel</Button>
+                    <Button type="submit" variant="danger" disabled={!reason.trim()} isLoading={isPending}>Flag dispute</Button>
+                </div>
+            </form>
+        </Modal>
+    );
+};
 
 const Finance: React.FC = () => {
-   const { system } = useSettingsStore();
+    const [period, setPeriod] = useState<Period>('monthly');
+    const [filter, setFilter] = useState<TxFilter>('all');
+    const [page, setPage] = useState(1);
+    const [disputing, setDisputing] = useState<Transaction | null>(null);
 
-   const currencySymbol = system.currency === 'NGN' ? '₦' : '£';
+    const { data: statsData, isLoading: loadingStats } = useRevenueStats({ period });
+    const { data: txData, isLoading: loadingTx } = useTransactions({ status: filter === 'all' ? undefined : filter, page, limit: PAGE_SIZE });
+    const { data: pendingData } = useTransactions({ status: 'Pending', limit: 1 });
+    const { mutate: process, isPending: processing, variables: processingId } = useProcessTransaction();
 
-   const { data, isLoading } = useRevenueStats({ period: 'monthly' });
-   const stats = data?.data?.stats;
+    const stats = statsData?.data?.stats;
+    const transactions = txData?.data?.transactions ?? [];
+    const pagination = txData?.data?.pagination;
+    const pendingCount = pendingData?.data?.pagination?.total;
+    const totalPages = pagination ? pagination.totalPages ?? Math.ceil(pagination.total / PAGE_SIZE) : 1;
 
-   if (isLoading || !stats) {
-     return <div className="p-10 text-center">Loading Finance Data...</div>;
-   }
+    const tiles = [
+        { label: 'Total fees collected', value: stats?.totalRevenue },
+        { label: 'Platform earnings', value: stats?.platformEarnings },
+        { label: 'Rider payouts', value: stats?.riderPayouts },
+        { label: 'Net profit', value: stats?.netProfit },
+    ];
 
-   return (
-      <div className="p-6 lg:p-10 flex flex-col gap-10 max-w-7xl mx-auto overflow-y-auto">
-         <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-               <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white uppercase tracking-tighter">Financial Overview</h1>
-               <p className="text-slate-500 dark:text-gray-400 text-sm mt-1">
-                  Revenue tracking for Standard (Fleet) and Premium (Gig) models.
-               </p>
-            </div>
-            <div className="flex gap-2">
-               <button className="bg-white dark:bg-gray-800 border border-slate-300 dark:border-gray-700 px-6 py-2.5 rounded-xl font-bold text-sm">Download Report</button>
-            </div>
-         </header>
+    return (
+        <>
+            <PageHeader title="Finance" description="Revenue, payouts and settlement of every delivery." />
 
-         {/* KPI Cards */}
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white dark:bg-[#1a202c] p-6 rounded-3xl border border-slate-200 dark:border-gray-800 shadow-sm relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <span className="material-symbols-outlined text-4xl">payments</span>
-               </div>
-               <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Total Revenue</p>
-               <h3 className="text-2xl font-black mb-1">{currencySymbol}{stats.totalRevenue.toLocaleString()}</h3>
-               <span className="text-[10px] text-slate-400">Gross Delivery Volume</span>
-            </div>
+            <section className="mb-8">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                    <SectionTitle className="mb-0">
+                        Revenue <span className="text-sm font-medium text-ink-muted ml-1">{PERIOD_LABELS[period]}</span>
+                    </SectionTitle>
+                    <SegmentedControl<Period>
+                        ariaLabel="Revenue period"
+                        className="sm:w-80"
+                        value={period}
+                        onChange={setPeriod}
+                        segments={[
+                            { value: 'daily', label: 'Days' },
+                            { value: 'weekly', label: 'Weeks' },
+                            { value: 'monthly', label: 'Months' },
+                            { value: 'yearly', label: 'Years' },
+                        ]}
+                    />
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    {tiles.map((t) => (
+                        <Card key={t.label} padding="sm">
+                            <p className="text-[13px] font-medium text-ink-secondary">{t.label}</p>
+                            {loadingStats ? <Skeleton className="h-8 w-28 mt-1" /> : <p className="text-2xl font-bold text-ink mt-1">{formatCurrency(t.value ?? 0)}</p>}
+                        </Card>
+                    ))}
+                </div>
+                {stats && (
+                    <p className="text-[13px] text-ink-muted mt-2">
+                        Standard (fleet) {formatCurrency(stats.standardRevenue ?? 0)} · Premium (gig) {formatCurrency(stats.premiumRevenue ?? 0)}
+                    </p>
+                )}
+            </section>
 
-            <div className="bg-white dark:bg-[#1a202c] p-6 rounded-3xl border border-slate-200 dark:border-gray-800 shadow-sm relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <span className="material-symbols-outlined text-4xl text-blue-500">local_shipping</span>
-               </div>
-               <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Standard Fleet</p>
-               <h3 className="text-2xl font-black mb-1 text-blue-600">{currencySymbol}{stats.standardRevenue.toLocaleString()}</h3>
-               <span className="text-[10px] text-slate-400">100% Owned Revenue</span>
-            </div>
+            <section>
+                <SectionTitle>Transactions</SectionTitle>
+                <FilterChips<TxFilter>
+                    ariaLabel="Filter transactions"
+                    className="mb-4"
+                    value={filter}
+                    onChange={(v) => {
+                        setFilter(v);
+                        setPage(1);
+                    }}
+                    options={[
+                        { value: 'all', label: 'All' },
+                        { value: 'Pending', label: 'To settle', count: pendingCount },
+                        { value: 'Processed', label: 'Processed' },
+                        { value: 'Disputed', label: 'Disputed' },
+                    ]}
+                />
 
-            <div className="bg-white dark:bg-[#1a202c] p-6 rounded-3xl border border-slate-200 dark:border-gray-800 shadow-sm relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <span className="material-symbols-outlined text-4xl text-purple-500">two_wheeler</span>
-               </div>
-               <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Premium Platform</p>
-               <h3 className="text-2xl font-black mb-1 text-purple-600">{currencySymbol}{stats.platformEarnings.toLocaleString()}</h3>
-               <span className="text-[10px] text-slate-400">25% Commission on {currencySymbol}{stats.premiumRevenue.toLocaleString()}</span>
-            </div>
+                {loadingTx ? (
+                    <Skeleton className="h-80" />
+                ) : transactions.length === 0 ? (
+                    <EmptyState icon="receipt_long" title="No transactions" description="A transaction is created for each completed delivery." />
+                ) : (
+                    <>
+                        <Table>
+                            <thead>
+                                <tr>
+                                    <Th>Date</Th>
+                                    <Th>Client</Th>
+                                    <Th>Rider</Th>
+                                    <Th align="right">Total</Th>
+                                    <Th align="right">Commission</Th>
+                                    <Th align="right">Rider payout</Th>
+                                    <Th>Status</Th>
+                                    <Th />
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {transactions.map((t) => (
+                                    <Tr key={t.id}>
+                                        <Td className="whitespace-nowrap text-ink-secondary">{formatDate(t.date ?? t.createdAt, 'd MMM yyyy')}</Td>
+                                        <Td className="whitespace-nowrap font-medium">{t.clientName || '—'}</Td>
+                                        <Td className="whitespace-nowrap">
+                                            {t.riderName ?? <span className="text-ink-muted">—</span>}
+                                            {t.deliveryModel === 'Premium' && <Badge tone="primary" className="ml-2">Premium</Badge>}
+                                        </Td>
+                                        <Td align="right" className="font-semibold whitespace-nowrap">{formatCurrency(t.totalFee ?? 0)}</Td>
+                                        <Td align="right" className="whitespace-nowrap">{formatCurrency(t.platformCommission ?? 0)}</Td>
+                                        <Td align="right" className="whitespace-nowrap">{formatCurrency(t.riderPayout ?? 0)}</Td>
+                                        <Td>
+                                            <StatusBadge status={t.status} kind="transaction" />
+                                        </Td>
+                                        <Td align="right">
+                                            {t.status === 'Pending' && (
+                                                <div className="flex justify-end gap-2">
+                                                    <Button size="sm" variant="ghost" onClick={() => setDisputing(t)}>Dispute</Button>
+                                                    <Button size="sm" isLoading={processing && processingId === t.id} onClick={() => process(t.id)}>
+                                                        Mark paid
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </Td>
+                                    </Tr>
+                                ))}
+                            </tbody>
+                        </Table>
+                        <Pagination page={page} totalPages={totalPages} total={pagination?.total} onChange={setPage} />
+                    </>
+                )}
+            </section>
 
-            <div className="bg-[#101622] p-6 rounded-3xl border border-slate-900 shadow-xl relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-4 opacity-20">
-                  <span className="material-symbols-outlined text-4xl text-green-400">trending_up</span>
-               </div>
-               <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Net Profit (Est.)</p>
-               <h3 className="text-2xl font-black mb-1 text-green-400">{currencySymbol}{stats.netProfit.toLocaleString()}</h3>
-               <span className="text-[10px] text-slate-400">After Expenses & Payouts</span>
-            </div>
-         </div>
-
-         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            {/* Standard Model Breakdown */}
-            <div className="bg-white dark:bg-[#1a202c] rounded-3xl border border-slate-200 dark:border-gray-800 p-8">
-               <div className="flex justify-between items-center mb-6">
-                  <h3 className="font-black text-lg flex items-center gap-2">
-                     <span className="material-symbols-outlined text-blue-600">local_shipping</span>
-                     Standard Model (Fleet)
-                  </h3>
-                  <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-1 rounded uppercase">Company Owned</span>
-               </div>
-
-               <div className="space-y-4">
-                  <div className="flex justify-between items-end border-b border-gray-100 dark:border-gray-800 pb-2">
-                     <span className="text-sm font-bold text-slate-500">Gross Revenue</span>
-                     <span className="text-lg font-black">{currencySymbol}{stats.standardRevenue.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-end border-b border-gray-100 dark:border-gray-800 pb-2">
-                     <span className="text-sm font-bold text-red-400">Est. OpEx (Fuel/Maint.)</span>
-                     <span className="text-lg font-black text-red-400">- {currencySymbol}{stats.operationalExpenses.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-end pt-2">
-                     <span className="text-sm font-bold text-green-600">Net Profit</span>
-                     <span className="text-xl font-black text-green-600">
-                        {currencySymbol}{(stats.standardRevenue - stats.operationalExpenses).toLocaleString()}
-                     </span>
-                  </div>
-               </div>
-            </div>
-
-            {/* Premium Model Breakdown */}
-            <div className="bg-white dark:bg-[#1a202c] rounded-3xl border border-slate-200 dark:border-gray-800 p-8">
-               <div className="flex justify-between items-center mb-6">
-                  <h3 className="font-black text-lg flex items-center gap-2">
-                     <span className="material-symbols-outlined text-purple-600">two_wheeler</span>
-                     Premium Model (Marketplace)
-                  </h3>
-                  <span className="bg-purple-100 text-purple-700 text-[10px] font-black px-2 py-1 rounded uppercase">Gig Economy</span>
-               </div>
-
-               <div className="space-y-4">
-                  <div className="flex justify-between items-end border-b border-gray-100 dark:border-gray-800 pb-2">
-                     <span className="text-sm font-bold text-slate-500">Gross Booking Value</span>
-                     <span className="text-lg font-black">{currencySymbol}{stats.premiumRevenue.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-end border-b border-gray-100 dark:border-gray-800 pb-2">
-                     <span className="text-sm font-bold text-slate-500">Rider Payouts (75%)</span>
-                     <span className="text-lg font-black text-slate-500">- {currencySymbol}{stats.riderPayouts.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-end pt-2">
-                     <span className="text-sm font-bold text-green-600">Platform Commission (25%)</span>
-                     <span className="text-xl font-black text-green-600">
-                        {currencySymbol}{stats.platformEarnings.toLocaleString()}
-                     </span>
-                  </div>
-               </div>
-            </div>
-         </div>
-      </div>
-   );
+            <DisputeModal tx={disputing} onClose={() => setDisputing(null)} />
+        </>
+    );
 };
 
 export default Finance;

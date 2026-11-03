@@ -35,7 +35,7 @@ export interface RevenueTrend {
 }
 
 export interface GetTransactionsParams {
-  status?: 'pending' | 'processed' | 'disputed';
+  status?: 'Pending' | 'Processed' | 'Disputed';
   deliveryModel?: 'Standard' | 'Premium';
   startDate?: string;
   endDate?: string;

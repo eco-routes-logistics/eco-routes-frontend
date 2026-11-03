@@ -7,36 +7,33 @@ import { queryClient } from '@/lib/queryClient';
 import App from './App';
 import './index.css';
 
-// Initialize theme
-const theme = localStorage.getItem('theme') || 'light';
-if (theme === 'dark') {
-    document.documentElement.classList.add('dark');
-}
-
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
         <BrowserRouter>
             <QueryClientProvider client={queryClient}>
                 <App />
                 <Toaster
-                    position="top-right"
+                    position="top-center"
                     toastOptions={{
                         duration: 4000,
                         style: {
-                            background: '#363636',
-                            color: '#fff',
+                            background: 'rgb(var(--color-text-primary))',
+                            color: 'rgb(var(--color-surface-raised))',
+                            borderRadius: '14px',
+                            fontWeight: 600,
+                            fontSize: '14px',
                         },
                         success: {
                             duration: 3000,
                             iconTheme: {
-                                primary: '#10b981',
+                                primary: 'rgb(var(--color-success))',
                                 secondary: '#fff',
                             },
                         },
                         error: {
                             duration: 5000,
                             iconTheme: {
-                                primary: '#ef4444',
+                                primary: 'rgb(var(--color-danger))',
                                 secondary: '#fff',
                             },
                         },

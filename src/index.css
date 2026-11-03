@@ -2,7 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar styles */
+/*
+ * Design tokens (EcoRoutes design system v1.0).
+ * RGB channels only, consumed by tailwind.config.js as rgb(var(--x) / <alpha>).
+ */
+@layer base {
+  :root {
+    --color-primary: 22 125 74;          /* #167D4A */
+    --color-primary-hover: 16 106 62;    /* #106A3E */
+    --color-primary-subtle: 228 244 235; /* #E4F4EB */
+
+    --color-surface: 244 246 245;
+    --color-surface-raised: 255 255 255;
+    --color-surface-sunken: 236 239 237;
+    --color-border: 220 226 223;
+
+    --color-text-primary: 18 26 22;
+    --color-text-secondary: 69 82 75;
+    --color-text-muted: 107 119 112;
+
+    --color-success: 21 128 69;          /* #158045 */
+    --color-success-subtle: 227 243 233;
+    --color-warning: 182 106 9;          /* #B66A09 */
+    --color-warning-subtle: 251 240 223;
+    --color-danger: 197 59 55;           /* #C53B37 */
+    --color-danger-subtle: 251 231 230;
+    --color-info: 40 116 178;            /* #2874B2 */
+    --color-info-subtle: 227 238 248;
+
+    color-scheme: light;
+  }
+
+  .dark {
+    --color-primary: 30 138 83;
+    --color-primary-hover: 38 160 97;
+    --color-primary-subtle: 22 48 34;
+
+    --color-surface: 14 19 17;
+    --color-surface-raised: 22 29 25;
+    --color-surface-sunken: 10 14 12;
+    --color-border: 39 49 44;
+
+    --color-text-primary: 236 241 238;
+    --color-text-secondary: 179 190 184;
+    --color-text-muted: 139 150 144;
+
+    --color-success: 61 186 117;
+    --color-success-subtle: 20 46 32;
+    --color-warning: 227 154 59;
+    --color-warning-subtle: 52 38 18;
+    --color-danger: 239 107 102;
+    --color-danger-subtle: 58 26 25;
+    --color-info: 90 162 222;
+    --color-info-subtle: 20 38 56;
+
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-surface text-ink font-sans antialiased;
+  }
+}
+
+/* Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -13,36 +75,25 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: rgb(var(--color-border));
   border-radius: 3px;
 }
 
-.dark ::-webkit-scrollbar-thumb {
-  background: #374151;
-}
-
-/* Base styles */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: 'Inter', 'Public Sans', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* Material Icons */
+/* Material Symbols */
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   display: inline-block;
   vertical-align: middle;
+  line-height: 1;
 }
 
 .material-symbols-outlined.fill-1 {
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Bottom padding that clears the iOS home indicator */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* Print styles */

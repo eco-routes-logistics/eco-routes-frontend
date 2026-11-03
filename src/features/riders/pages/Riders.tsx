@@ -1,634 +1,198 @@
+import React, { useMemo, useState } from 'react';
+import { Avatar } from '@/components/layout/AppShell';
+import { Badge, Button, Card, FilterChips, Icon, PageHeader, SearchInput, SegmentedControl, Skeleton, StatusBadge, Table, Td, Th, Tr } from '@/components/ui';
+import { EmptyState } from '@/components/common/EmptyState';
+import { formatDate } from '@/utils/format';
+import { ApiRider } from '../api/riders';
+import { useApproveRider, useRiders } from '../hooks/useRiders';
+import { AddRiderModal, ID_TYPE_LABELS, RejectRiderModal, RiderDrawer } from '../components/RiderForms';
 
-import React, { useState, useMemo } from 'react';
-import type { Rider } from '@/types/rider';
-import { useRiders, useCreateRider, useUpdateRider, useDeleteRider, useRiderOrders } from '../hooks/useRiders';
+type Tab = 'approvals' | 'roster';
+type RosterFilter = 'all' | 'active' | 'busy' | 'inactive' | 'rejected';
+
+const DocThumb: React.FC<{ url?: string; label: string }> = ({ url, label }) =>
+    url ? (
+        <a href={url} target="_blank" rel="noreferrer" className="group block">
+            <img src={url} alt={label} className="h-24 w-full object-cover rounded-xl border border-line group-hover:opacity-90" />
+            <span className="text-[12px] text-ink-muted inline-flex items-center gap-1 mt-1">
+                {label} <Icon name="open_in_new" className="text-[13px]" />
+            </span>
+        </a>
+    ) : (
+        <div>
+            <div className="h-24 rounded-xl border border-dashed border-line flex items-center justify-center text-[12px] text-ink-muted">Not provided</div>
+            <span className="text-[12px] text-ink-muted mt-1 block">{label}</span>
+        </div>
+    );
+
+const ApplicationCard: React.FC<{ rider: ApiRider; onReject: () => void }> = ({ rider, onReject }) => {
+    const { mutate: approve, isPending, variables } = useApproveRider();
+    return (
+        <Card className="flex flex-col">
+            <div className="flex items-start gap-3">
+                <Avatar name={rider.name} url={rider.passportPhotoUrl} className="size-12 text-base flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                    <p className="font-bold text-ink truncate">{rider.name}</p>
+                    <p className="text-sm text-ink-secondary truncate">{rider.phone}{rider.email && ` · ${rider.email}`}</p>
+                    <p className="text-[12px] text-ink-muted mt-0.5">Applied {formatDate(rider.createdAt, 'd MMM yyyy')}</p>
+                </div>
+            </div>
+
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mt-4">
+                <div>
+                    <dt className="text-[12px] text-ink-muted">Vehicle</dt>
+                    <dd className="font-semibold text-ink">{rider.vehicleType} · {rider.vehicleNumber}</dd>
+                </div>
+                <div>
+                    <dt className="text-[12px] text-ink-muted">ID type</dt>
+                    <dd className="font-semibold text-ink">{rider.idType ? ID_TYPE_LABELS[rider.idType] ?? rider.idType : '—'}</dd>
+                </div>
+                <div>
+                    <dt className="text-[12px] text-ink-muted">NIN</dt>
+                    <dd className="font-semibold text-ink">{rider.nin ?? '—'}</dd>
+                </div>
+            </dl>
+
+            <div className="grid grid-cols-2 gap-3 mt-4">
+                <DocThumb url={rider.idDocumentUrl} label="ID document" />
+                <DocThumb url={rider.passportPhotoUrl} label="Photo" />
+            </div>
+
+            <div className="flex gap-3 mt-5 pt-4 border-t border-line">
+                <Button variant="secondary" className="flex-1" onClick={onReject} disabled={isPending}>
+                    Reject
+                </Button>
+                <Button className="flex-1" onClick={() => approve(rider.id)} isLoading={isPending && variables === rider.id}>
+                    Approve
+                </Button>
+            </div>
+        </Card>
+    );
+};
 
 const Riders: React.FC = () => {
-  const { data: ridersResponse, isLoading } = useRiders();
-  const riders = ridersResponse?.data?.riders || [];
-  
-  const { mutate: createRider } = useCreateRider();
-  const { mutate: updateRider } = useUpdateRider();
-  const { mutate: deleteRider } = useDeleteRider();
-  
-  const [selectedRider, setSelectedRider] = useState<Rider | null>(null);
+    const { data, isLoading } = useRiders();
+    const riders = data?.data?.riders ?? [];
+    const pending = useMemo(() => riders.filter((r) => r.status === 'pending'), [riders]);
 
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('All');
-  const [rejectingId, setRejectingId] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
+    const [tab, setTab] = useState<Tab | null>(null);
+    const [filter, setFilter] = useState<RosterFilter>('all');
+    const [search, setSearch] = useState('');
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [rejecting, setRejecting] = useState<ApiRider | null>(null);
+    const [adding, setAdding] = useState(false);
 
-  // New rider form state
-  const [newRider, setNewRider] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    vehicleType: 'Motorcycle',
-  });
+    // Open on the approvals queue when there's something to review, until the user picks a tab
+    const activeTab: Tab = tab ?? (pending.length > 0 ? 'approvals' : 'roster');
 
-  // Edit rider form state
-  const [editRiderData, setEditRiderData] = useState<Partial<Rider>>({});
+    const roster = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        return riders
+            .filter((r) => r.status !== 'pending')
+            .filter((r) => filter === 'all' || r.status === filter)
+            .filter((r) => !q || [r.name, r.phone, r.email, r.vehicleNumber].some((v) => v?.toLowerCase().includes(q)));
+    }, [riders, filter, search]);
 
-  // Filter riders based on search and status
-  const filteredRiders = useMemo(() => {
-    return riders.filter(rider => {
-      const matchesSearch =
-        (rider.name?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
-        (rider.phone?.includes(searchQuery) || false) ||
-        (rider.email?.toLowerCase().includes(searchQuery.toLowerCase()) || false);
+    const selected = riders.find((r) => r.id === selectedId) ?? null;
 
-      const matchesStatus = statusFilter === 'All' || rider.status === statusFilter;
+    return (
+        <>
+            <PageHeader
+                title="Riders"
+                description="Review new applications and manage your fleet."
+                actions={
+                    <Button onClick={() => setAdding(true)} leftIcon={<Icon name="add" className="text-[20px]" />}>
+                        Add rider
+                    </Button>
+                }
+            />
 
-      return matchesSearch && matchesStatus;
-    });
-  }, [riders, searchQuery, statusFilter]);
+            <SegmentedControl<Tab>
+                ariaLabel="Riders view"
+                className="mb-5 max-w-sm"
+                value={activeTab}
+                onChange={setTab}
+                segments={[
+                    { value: 'approvals', label: 'Approvals', count: pending.length },
+                    { value: 'roster', label: 'Roster' },
+                ]}
+            />
 
-  // Generate rider ID
-  const generateRiderId = (): string => {
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 100);
-    return `RID-${timestamp.toString().slice(-3)}${random}`;
-  };
-
-  // Handle add rider
-  const handleAddRider = () => {
-    if (!newRider.name || !newRider.phone) {
-      alert('Please fill in name and phone number');
-      return;
-    }
-
-    createRider({
-      ...newRider,
-      vehicleType: newRider.vehicleType as any,
-    });
-    
-    setShowAddModal(false);
-    setNewRider({
-      name: '',
-      phone: '',
-      email: '',
-      vehicleType: 'Motorcycle',
-    });
-  };
-
-  // Handle edit rider
-  const handleEditRider = () => {
-    if (selectedRider && editRiderData) {
-      updateRider({ id: selectedRider.id, data: editRiderData });
-      setShowEditModal(false);
-      setSelectedRider(null);
-      setEditRiderData({});
-    }
-  };
-
-  // Toggle rider status
-  const toggleRiderStatus = (riderId: string, currentStatus: string) => {
-    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
-    updateRider({ id: riderId, data: { status: newStatus } });
-  };
-
-  // Approve pending rider
-  const handleApprove = (riderId: string) => {
-    updateRider({ id: riderId, data: { status: 'active' } });
-  };
-
-  // Reject pending rider
-  const handleReject = (riderId: string) => {
-    updateRider({ id: riderId, data: { status: 'rejected', rejectionReason: rejectReason } });
-    setRejectingId(null);
-    setRejectReason('');
-  };
-
-  // Mask NIN
-  const maskNin = (nin: string) => `${nin.slice(0, 3)}${'•'.repeat(5)}${nin.slice(-3)}`;
-
-  const { data: ordersResponse } = useRiderOrders(selectedRider?.id || '', { status: 'assigned' });
-  const selectedRiderOrders = selectedRider ? (ordersResponse?.data?.orders || []) : [];
-
-  // Get status badge color
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-50 text-green-700 border-green-100 dark:bg-green-900/20 dark:text-green-400';
-      case 'inactive':
-        return 'bg-gray-50 text-gray-700 border-gray-100 dark:bg-gray-900/20 dark:text-gray-400';
-      case 'busy':
-        return 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-900/20 dark:text-amber-400';
-      case 'pending':
-        return 'bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-900/20 dark:text-blue-400';
-      case 'rejected':
-        return 'bg-red-50 text-red-700 border-red-100 dark:bg-red-900/20 dark:text-red-400';
-      default:
-        return 'bg-gray-50 text-gray-700 border-gray-100';
-    }
-  };
-
-  return (
-    <div className="flex-1 flex flex-col h-full bg-background-light dark:bg-background-dark relative overflow-hidden">
-      <div className="flex-1 overflow-y-auto p-4 lg:p-10">
-        <div className="max-w-7xl mx-auto flex flex-col gap-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-black tracking-tight text-[#111318] dark:text-white">Rider Management</h1>
-              <p className="text-sm text-slate-500 mt-1">
-                {filteredRiders.length} of {riders.length} riders • {riders.filter(r => r.status === 'active').length} active
-                {riders.filter(r => r.status === 'pending').length > 0 && (
-                  <span className="ml-2 px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 rounded-full text-xs font-bold">
-                    {riders.filter(r => r.status === 'pending').length} pending review
-                  </span>
-                )}
-              </p>
-            </div>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center justify-center gap-2 h-10 px-6 bg-primary hover:bg-primary-dark rounded-lg text-white text-sm font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
-            >
-              <span className="material-symbols-outlined text-[20px]">add</span>
-              Add Rider
-            </button>
-          </div>
-
-          <div className="bg-white dark:bg-[#1a202c] rounded-2xl border border-[#dbdfe6] dark:border-gray-800 shadow-sm overflow-hidden flex flex-col">
-            {/* Filters Toolbar */}
-            <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex flex-col lg:flex-row gap-4 items-center justify-between">
-              <div className="flex items-center gap-2 overflow-x-auto w-full lg:w-auto">
-                {['All', 'active', 'inactive', 'busy', 'pending'].map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setStatusFilter(tab)}
-                    className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200 capitalize
-                      ${statusFilter === tab ? 'bg-primary text-white' : 'text-[#616f89] dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}
-                    `}
-                  >
-                    {tab}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-3 w-full lg:w-auto">
-                <div className="relative flex-1 lg:w-64">
-                  <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
-                    <span className="material-symbols-outlined text-[20px]">search</span>
-                  </span>
-                  <input
-                    className="w-full h-10 pl-10 pr-4 bg-gray-50 dark:bg-gray-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/50"
-                    placeholder="Search by name, phone, or email..."
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Riders Grid */}
-            {statusFilter === 'pending' ? (
-              /* Pending Approval Queue */
-              <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {filteredRiders.length === 0 ? (
-                  <div className="col-span-full py-12 text-center text-slate-500">
-                    <span className="material-symbols-outlined text-4xl mb-2 block text-slate-300">how_to_reg</span>
-                    No pending applications
-                  </div>
+            {isLoading ? (
+                <Skeleton className="h-96" />
+            ) : activeTab === 'approvals' ? (
+                pending.length === 0 ? (
+                    <EmptyState icon="verified" title="All caught up" description="New rider applications will appear here for review." />
                 ) : (
-                  filteredRiders.map((rider) => (
-                    <div key={rider.id} className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl border border-blue-100 dark:border-blue-900/40 p-6">
-                      {/* Header */}
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h3 className="font-bold text-lg text-slate-900 dark:text-white">{rider.name}</h3>
-                          <p className="text-xs text-slate-500">Applied {new Date(rider.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                        </div>
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tight border bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900">
-                          Pending Review
-                        </span>
-                      </div>
-
-                      {/* Contact + Vehicle */}
-                      <div className="space-y-2 mb-4">
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="material-symbols-outlined text-[18px] text-slate-400">phone</span>
-                          <span className="text-slate-600 dark:text-slate-400">{rider.phone}</span>
-                        </div>
-                        {rider.email && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="material-symbols-outlined text-[18px] text-slate-400">email</span>
-                            <span className="text-slate-600 dark:text-slate-400">{rider.email}</span>
-                          </div>
-                        )}
-                        {rider.vehicleType && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="material-symbols-outlined text-[18px] text-slate-400">two_wheeler</span>
-                            <span className="text-slate-600 dark:text-slate-400">{rider.vehicleType}{rider.vehicleNumber ? ` · ${rider.vehicleNumber}` : ''}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* KYC Info */}
-                      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-4 space-y-2">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Identity Verification</p>
-                        {rider.nin && (
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-slate-500">NIN</span>
-                            <span className="font-mono font-bold text-slate-800 dark:text-white">{maskNin(rider.nin)}</span>
-                          </div>
-                        )}
-                        {rider.idType && (
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-slate-500">ID Type</span>
-                            <span className="font-bold text-slate-800 dark:text-white">{rider.idType?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Document Thumbnails */}
-                      {(rider.passportPhotoUrl || rider.idDocumentUrl) && (
-                        <div className="flex gap-3 mb-4">
-                          {rider.passportPhotoUrl && (
-                            <div className="flex-1">
-                              <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Passport Photo</p>
-                              <a href={rider.passportPhotoUrl} target="_blank" rel="noreferrer" className="block">
-                                <img
-                                  src={rider.passportPhotoUrl}
-                                  alt="Passport photo"
-                                  className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity"
-                                />
-                              </a>
-                            </div>
-                          )}
-                          {rider.idDocumentUrl && (
-                            <div className="flex-1">
-                              <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">ID Document</p>
-                              <a href={rider.idDocumentUrl} target="_blank" rel="noreferrer" className="block">
-                                <img
-                                  src={rider.idDocumentUrl}
-                                  alt="ID document"
-                                  className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity"
-                                />
-                              </a>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Reject reason input */}
-                      {rejectingId === rider.id && (
-                        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-200 dark:border-red-800">
-                          <label className="text-xs font-bold text-red-700 dark:text-red-400 uppercase block mb-1">Rejection Reason</label>
-                          <input
-                            type="text"
-                            placeholder="Enter reason for rejection..."
-                            value={rejectReason}
-                            onChange={(e) => setRejectReason(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-900 border border-red-200 dark:border-red-800 text-sm focus:ring-2 focus:ring-red-500/30 outline-none"
-                            title="Rejection reason"
-                          />
-                        </div>
-                      )}
-
-                      {/* Action Buttons */}
-                      <div className="flex gap-2">
-                        {rejectingId === rider.id ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => { setRejectingId(null); setRejectReason(''); }}
-                              className="flex-1 py-2.5 text-sm font-bold rounded-xl border border-gray-200 dark:border-gray-700 text-slate-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleReject(rider.id)}
-                              disabled={!rejectReason.trim()}
-                              className="flex-1 py-2.5 text-sm font-bold rounded-xl bg-red-600 text-white hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Confirm Reject
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => setRejectingId(rider.id)}
-                              className="flex-1 py-2.5 text-sm font-bold rounded-xl border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
-                            >
-                              Reject
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleApprove(rider.id)}
-                              className="flex-1 py-2.5 text-sm font-bold rounded-xl bg-green-600 text-white hover:bg-green-700 transition-all"
-                            >
-                              Approve
-                            </button>
-                          </>
-                        )}
-                      </div>
+                    <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {pending.map((r) => (
+                            <ApplicationCard key={r.id} rider={r} onReject={() => setRejecting(r)} />
+                        ))}
                     </div>
-                  ))
-                )}
-              </div>
+                )
             ) : (
-              /* Regular Rider Cards */
-              <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredRiders.length === 0 ? (
-                  <div className="col-span-full py-12 text-center text-slate-500">
-                    <span className="material-symbols-outlined text-4xl mb-2 block text-slate-300">person_off</span>
-                    No riders found
-                  </div>
-                ) : (
-                  filteredRiders.map((rider) => (
-                    <div
-                      key={rider.id}
-                      className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl border border-gray-100 dark:border-gray-800 p-6 hover:shadow-lg transition-all cursor-pointer group"
-                      onClick={() => {
-                        setSelectedRider(rider);
-                        setEditRiderData(rider);
-                        setShowEditModal(true);
-                      }}
-                    >
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="size-12 rounded-full bg-cover bg-center bg-slate-200" style={{ backgroundImage: `url('${rider.passportPhotoUrl || `https://picsum.photos/seed/${rider.id}/100/100`}')` }}></div>
-                          <div>
-                            <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{rider.name}</h3>
-                            <p className="text-xs text-slate-500">{rider.vehicleType}{rider.vehicleNumber ? ` · ${rider.vehicleNumber}` : ''}</p>
-                          </div>
-                        </div>
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tight border ${getStatusColor(rider.status)}`}>
-                          {rider.status}
-                        </span>
-                      </div>
-
-                      <div className="space-y-2 mb-4">
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="material-symbols-outlined text-[18px] text-slate-400">phone</span>
-                          <span className="text-slate-600 dark:text-slate-400">{rider.phone}</span>
-                        </div>
-                        {rider.email && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="material-symbols-outlined text-[18px] text-slate-400">email</span>
-                            <span className="text-slate-600 dark:text-slate-400">{rider.email}</span>
-                          </div>
-                        )}
-                        {rider.vehicleType && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="material-symbols-outlined text-[18px] text-slate-400">two_wheeler</span>
-                            <span className="text-slate-600 dark:text-slate-400">{rider.vehicleType}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <div className="text-center">
-                          <p className="text-2xl font-black text-primary">{rider.currentOrders}</p>
-                          <p className="text-[10px] text-slate-500 uppercase font-bold">Active</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-2xl font-black text-slate-700 dark:text-white">{rider.totalDeliveries}</p>
-                          <p className="text-[10px] text-slate-500 uppercase font-bold">Total</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-2xl font-black text-amber-600">
-                            {rider.rating.toFixed(1)}
-                            <span className="material-symbols-outlined text-[16px] align-middle ml-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                          </p>
-                          <p className="text-[10px] text-slate-500 uppercase font-bold">Rating</p>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleRiderStatus(rider.id, rider.status);
-                          }}
-                          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${rider.status === 'active'
-                              ? 'bg-red-50 text-red-700 hover:bg-red-100'
-                              : 'bg-green-50 text-green-700 hover:bg-green-100'
-                            }`}
-                        >
-                          {rider.status === 'active' ? 'Deactivate' : 'Activate'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedRider(rider);
-                          }}
-                          className="px-4 py-2 text-xs font-bold bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-all"
-                        >
-                          View Orders
-                        </button>
-                      </div>
+                <>
+                    <div className="space-y-3 mb-4">
+                        <FilterChips<RosterFilter>
+                            ariaLabel="Filter riders"
+                            value={filter}
+                            onChange={setFilter}
+                            options={[
+                                { value: 'all', label: 'All' },
+                                { value: 'active', label: 'Online' },
+                                { value: 'busy', label: 'On a job' },
+                                { value: 'inactive', label: 'Offline' },
+                                { value: 'rejected', label: 'Rejected' },
+                            ]}
+                        />
+                        <SearchInput value={search} onChange={setSearch} placeholder="Search by name, phone or plate" className="max-w-md" />
                     </div>
-                  ))
-                )}
-              </div>
+                    {roster.length === 0 ? (
+                        <EmptyState icon="two_wheeler" title="No riders match" description="Try another filter or search." />
+                    ) : (
+                        <Table>
+                            <thead>
+                                <tr>
+                                    <Th>Rider</Th>
+                                    <Th>Vehicle</Th>
+                                    <Th>Type</Th>
+                                    <Th align="right">Deliveries</Th>
+                                    <Th align="right">Rating</Th>
+                                    <Th>Status</Th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {roster.map((r) => (
+                                    <Tr key={r.id} onClick={() => setSelectedId(r.id)}>
+                                        <Td>
+                                            <div className="flex items-center gap-3">
+                                                <Avatar name={r.name} url={r.passportPhotoUrl} className="size-9 text-[13px] flex-shrink-0" />
+                                                <div className="min-w-0">
+                                                    <p className="font-semibold whitespace-nowrap">{r.name}</p>
+                                                    <p className="text-[12px] text-ink-muted">{r.phone}</p>
+                                                </div>
+                                            </div>
+                                        </Td>
+                                        <Td className="text-ink-secondary whitespace-nowrap">{r.vehicleType} · {r.vehicleNumber}</Td>
+                                        <Td>{r.riderType === 'premium' ? <Badge tone="primary">Premium</Badge> : <span className="text-ink-secondary">Standard</span>}</Td>
+                                        <Td align="right">{r.totalDeliveries ?? 0}</Td>
+                                        <Td align="right">{(r.rating ?? 0).toFixed(1)}</Td>
+                                        <Td>
+                                            <StatusBadge status={r.status} kind="rider" dot />
+                                        </Td>
+                                    </Tr>
+                                ))}
+                            </tbody>
+                        </Table>
+                    )}
+                </>
             )}
-          </div>
-        </div>
-      </div>
 
-      {/* Add Rider Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-[60] flex justify-end">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)}></div>
-          <div className="relative w-full max-w-lg bg-white dark:bg-[#1a202c] shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-300 border-l border-gray-200 dark:border-gray-700">
-            <div className="px-6 py-4 border-b border-[#f0f2f4] dark:border-gray-800 flex items-center justify-between">
-              <h2 className="text-xl font-bold">Add New Rider</h2>
-              <button type="button" onClick={() => setShowAddModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase">Full Name *</label>
-                <input
-                  className="rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm"
-                  type="text"
-                  placeholder="John Doe"
-                  value={newRider.name}
-                  onChange={(e) => setNewRider({ ...newRider, name: e.target.value })}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase">Phone Number *</label>
-                <input
-                  className="rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm"
-                  type="tel"
-                  placeholder="+234 801 234 5678"
-                  value={newRider.phone}
-                  onChange={(e) => setNewRider({ ...newRider, phone: e.target.value })}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase">Email (Optional)</label>
-                <input
-                  className="rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm"
-                  type="email"
-                  placeholder="john@example.com"
-                  value={newRider.email}
-                  onChange={(e) => setNewRider({ ...newRider, email: e.target.value })}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase">Vehicle Type</label>
-                <select
-                  title="Vehicle type"
-                  className="rounded-lg border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm"
-                  value={newRider.vehicleType}
-                  onChange={(e) => setNewRider({ ...newRider, vehicleType: e.target.value })}
-                >
-                  <option value="Motorcycle">Motorcycle</option>
-                  <option value="Car">Car</option>
-                  <option value="Van">Van</option>
-                  <option value="Bicycle">Bicycle</option>
-                </select>
-              </div>
-            </div>
-            <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 flex gap-4">
-              <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-3 font-bold text-sm text-slate-600 border border-slate-300 rounded-xl transition-all hover:bg-white">Cancel</button>
-              <button type="button" onClick={handleAddRider} className="flex-1 py-3 font-bold text-sm text-white bg-primary rounded-xl shadow-lg shadow-primary/20 transition-all hover:bg-primary-dark">Add Rider</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Rider Modal */}
-      {showEditModal && selectedRider && (
-        <div className="fixed inset-0 z-[60] flex justify-end">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => {
-            setShowEditModal(false);
-            setSelectedRider(null);
-            setEditRiderData({});
-          }}></div>
-          <div className="relative w-full max-w-2xl bg-white dark:bg-[#1a202c] shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-300 border-l border-gray-200 dark:border-gray-700">
-            <div className="px-6 py-5 border-b border-[#dbdfe6] dark:border-gray-700 flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-black flex items-center gap-3">
-                  Rider Details <span className="text-primary font-normal">{selectedRider.id}</span>
-                </h2>
-                <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">
-                  {selectedRider.totalDeliveries} Total Deliveries • {selectedRider.rating.toFixed(1)} ⭐ Rating
-                </p>
-              </div>
-              <button type="button" onClick={() => {
-                setShowEditModal(false);
-                setSelectedRider(null);
-                setEditRiderData({});
-              }} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-8 space-y-6">
-              <div className="bg-gray-50 dark:bg-gray-800/40 p-6 rounded-2xl border border-gray-100 dark:border-gray-800">
-                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Edit Information</h4>
-                <div className="space-y-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Full Name</label>
-                    <input
-                      className="rounded-lg border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
-                      type="text"
-                      placeholder="Full name"
-                      title="Full name"
-                      value={editRiderData.name || ''}
-                      onChange={(e) => setEditRiderData({ ...editRiderData, name: e.target.value })}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Phone</label>
-                    <input
-                      className="rounded-lg border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
-                      type="tel"
-                      placeholder="Phone number"
-                      title="Phone number"
-                      value={editRiderData.phone || ''}
-                      onChange={(e) => setEditRiderData({ ...editRiderData, phone: e.target.value })}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Email</label>
-                    <input
-                      className="rounded-lg border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
-                      type="email"
-                      placeholder="Email address"
-                      title="Email address"
-                      value={editRiderData.email || ''}
-                      onChange={(e) => setEditRiderData({ ...editRiderData, email: e.target.value })}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Vehicle Type</label>
-                    <select
-                      title="Vehicle type"
-                      className="rounded-lg border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
-                      value={editRiderData.vehicleType || 'Motorcycle'}
-                      onChange={(e) => setEditRiderData({ ...editRiderData, vehicleType: e.target.value })}
-                    >
-                      <option value="Motorcycle">Motorcycle</option>
-                      <option value="Car">Car</option>
-                      <option value="Van">Van</option>
-                      <option value="Bicycle">Bicycle</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-primary/5 dark:bg-primary/10 p-6 rounded-2xl border border-primary/20">
-                <h4 className="text-xs font-black text-primary uppercase tracking-widest mb-4">Assigned Orders</h4>
-                {selectedRiderOrders.length === 0 ? (
-                  <p className="text-sm text-slate-500">No orders currently assigned</p>
-                ) : (
-                  <div className="space-y-2">
-                    {selectedRiderOrders.map((order: any) => (
-                      <div key={order.id} className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg">
-                        <div>
-                          <p className="font-bold text-sm">{order.id}</p>
-                          <p className="text-xs text-slate-500">{order.customer}</p>
-                        </div>
-                        <span className="text-xs font-bold text-primary">{order.status}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-[#dbdfe6] dark:border-gray-700 bg-white dark:bg-[#1a202c] flex gap-4">
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm('Are you sure you want to delete this rider?')) {
-                    deleteRider(selectedRider.id);
-                    setShowEditModal(false);
-                    setSelectedRider(null);
-                  }
-                }}
-                className="py-4 px-6 font-black text-sm text-red-700 dark:text-red-400 border-2 border-red-200 dark:border-red-800 rounded-2xl flex items-center justify-center gap-2 hover:bg-red-50 dark:hover:bg-red-900/20"
-              >
-                <span className="material-symbols-outlined">delete</span> Delete Rider
-              </button>
-              <button
-                type="button"
-                onClick={handleEditRider}
-                className="flex-1 py-4 font-black text-sm text-white bg-primary rounded-2xl shadow-xl shadow-primary/30 flex items-center justify-center gap-2 hover:bg-primary-dark"
-              >
-                <span className="material-symbols-outlined">save</span> Save Changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+            <RiderDrawer rider={selected} onClose={() => setSelectedId(null)} />
+            <RejectRiderModal rider={rejecting} onClose={() => setRejecting(null)} />
+            <AddRiderModal isOpen={adding} onClose={() => setAdding(false)} />
+        </>
+    );
 };
 
 export default Riders;

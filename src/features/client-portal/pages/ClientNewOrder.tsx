@@ -1,290 +1,255 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/axios';
-import { DELIVERY_TYPES } from '@/utils/constants';
-import toast from 'react-hot-toast';
+import { Link, useNavigate } from 'react-router-dom';
+import { Button, Card, Icon, Input, Textarea } from '@/components/ui';
+import { cn } from '@/utils/cn';
+import { formatCurrency } from '@/utils/format';
+import { useClientMe, useCreateClientOrder } from '../hooks/useClientAuth';
+import { DeliveryModel, DeliveryType } from '../api/clientAuth';
+import { DELIVERY_TYPE_LABELS, PREMIUM_MULTIPLIER, estimateDeliveryFee } from '../utils/clientOrders';
 
-const STEPS = ['Pickup', 'Delivery', 'Package', 'Review'];
+interface FormState {
+    pickupLocation: string;
+    pickupContact: string;
+    pickupPhone: string;
+    customerName: string;
+    customerPhone: string;
+    customerAddress: string;
+    landmark: string;
+    description: string;
+    weight: string;
+    value: string;
+    specialInstructions: string;
+    deliveryType: DeliveryType;
+    deliveryModel: DeliveryModel;
+}
+
+type Errors = Partial<Record<keyof FormState, string>>;
+
+const INITIAL: FormState = {
+    pickupLocation: '', pickupContact: '', pickupPhone: '',
+    customerName: '', customerPhone: '', customerAddress: '', landmark: '',
+    description: '', weight: '', value: '', specialInstructions: '',
+    deliveryType: 'standard', deliveryModel: 'Standard',
+};
+
+const REQUIRED: Array<[keyof FormState, string]> = [
+    ['pickupLocation', 'Enter the pickup address'],
+    ['pickupContact', 'Who should the rider ask for?'],
+    ['pickupPhone', 'Enter a pickup phone number'],
+    ['customerName', "Enter the recipient's name"],
+    ['customerPhone', "Enter the recipient's phone"],
+    ['customerAddress', 'Enter the delivery address'],
+    ['description', "Say what's in the package"],
+];
+
+const validate = (f: FormState): Errors => {
+    const e: Errors = {};
+    for (const [k, msg] of REQUIRED) if (!String(f[k]).trim()) e[k] = msg;
+    if (!(Number(f.weight) > 0)) e.weight = 'Enter a weight above 0';
+    if (f.value === '' || Number(f.value) < 0) e.value = 'Enter the item value (0 if none)';
+    return e;
+};
+
+const FormSection: React.FC<{ step: number; title: string; children: React.ReactNode }> = ({ step, title, children }) => (
+    <Card>
+        <h2 className="flex items-center gap-2.5 text-[15px] font-bold text-ink mb-4">
+            <span className="size-6 rounded-full bg-primary-subtle text-primary text-[12px] font-bold flex items-center justify-center">{step}</span>
+            {title}
+        </h2>
+        <div className="space-y-4">{children}</div>
+    </Card>
+);
+
+const Choice: React.FC<{ selected: boolean; onClick: () => void; title: string; detail: string; price?: string }> = ({ selected, onClick, title, detail, price }) => (
+    <button
+        type="button"
+        aria-pressed={selected}
+        onClick={onClick}
+        className={cn(
+            'w-full text-left p-3.5 rounded-xl border-2 transition-colors',
+            selected ? 'border-primary bg-primary-subtle' : 'border-line bg-surface-raised hover:border-ink-muted'
+        )}
+    >
+        <span className="flex items-center justify-between gap-2">
+            <span className={cn('text-[15px] font-semibold', selected ? 'text-primary' : 'text-ink')}>{title}</span>
+            {price && <span className="text-sm font-semibold text-ink">{price}</span>}
+        </span>
+        <span className="block text-[13px] text-ink-secondary mt-0.5">{detail}</span>
+    </button>
+);
 
 const ClientNewOrder: React.FC = () => {
     const navigate = useNavigate();
-    const queryClient = useQueryClient();
-    const currencySymbol = '₦';
+    const { data: meData } = useClientMe();
+    const { mutate: createOrder, isPending, error } = useCreateClientOrder();
+    const [form, setForm] = useState<FormState>(INITIAL);
+    const [errors, setErrors] = useState<Errors>({});
 
-    const [step, setStep] = useState(0);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [form, setForm] = useState({
-        // Pickup
-        pickupLocation: '',
-        pickupContact: '',
-        pickupPhone: '',
-        // Delivery
-        customerName: '',
-        customerPhone: '',
-        customerAddress: '',
-        landmark: '',
-        // Package
-        description: '',
-        weight: '',
-        value: '',
-        deliveryType: DELIVERY_TYPES.STANDARD as string,
-        specialInstructions: '',
+    const payAsYouGo = meData?.data?.client?.accountType === 'pay_as_you_go';
+    const balance = meData?.data?.walletBalance ?? 0;
+    const weight = Number(form.weight) || 0;
+    const fee = estimateDeliveryFee(weight, form.deliveryType, form.deliveryModel);
+    const shortBy = payAsYouGo ? Math.max(0, fee - balance) : 0;
+
+    const set = <K extends keyof FormState>(k: K, v: FormState[K]) => {
+        setForm((f) => ({ ...f, [k]: v }));
+        setErrors((e) => ({ ...e, [k]: undefined }));
+    };
+    const bind = (k: keyof FormState) => ({
+        value: form[k] as string,
+        error: errors[k],
+        onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => set(k, e.target.value as never),
     });
 
-    // Estimated fee display only — actual fee calculated server-side
-    const deliveryFee = 2500 + (Number(form.weight) * 500);
+    const apiError = error as any;
+    const serverMessage: string | null = apiError ? apiError.response?.data?.message ?? 'Could not book the delivery. Please try again.' : null;
+    const insufficientFunds = apiError?.response?.status === 402;
 
-    const update = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
-
-    const canProceed = () => {
-        if (step === 0) return form.pickupLocation && form.pickupContact && form.pickupPhone;
-        if (step === 1) return form.customerName && form.customerPhone && form.customerAddress;
-        if (step === 2) return form.description && form.weight && form.value;
-        return true;
-    };
-
-    const handleSubmit = async () => {
-        setIsSubmitting(true);
-        try {
-            await api.post<any, any>('/client-auth/orders', {
-                pickupLocation: form.pickupLocation,
-                pickupContact: form.pickupContact,
-                pickupPhone: form.pickupPhone,
-                customerName: form.customerName,
-                customerPhone: form.customerPhone,
-                customerAddress: form.customerAddress,
-                landmark: form.landmark,
-                description: form.description,
-                weight: Number(form.weight),
-                value: Number(form.value),
-                deliveryType: form.deliveryType.toLowerCase().replace(' ', '_'),
-                specialInstructions: form.specialInstructions,
-            });
-            queryClient.invalidateQueries({ queryKey: ['client-orders'] });
-            toast.success('Order placed successfully!');
-            navigate('/client/orders');
-        } catch (error: any) {
-            toast.error(error?.response?.data?.message || 'Failed to place order');
-        } finally {
-            setIsSubmitting(false);
+    const submit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const found = validate(form);
+        setErrors(found);
+        if (Object.keys(found).length) {
+            document.getElementById(`f-${Object.keys(found)[0]}`)?.focus();
+            return;
         }
+        createOrder(
+            {
+                pickupLocation: form.pickupLocation.trim(),
+                pickupContact: form.pickupContact.trim(),
+                pickupPhone: form.pickupPhone.trim(),
+                customerName: form.customerName.trim(),
+                customerPhone: form.customerPhone.trim(),
+                customerAddress: form.customerAddress.trim(),
+                landmark: form.landmark.trim() || undefined,
+                description: form.description.trim(),
+                weight,
+                value: Number(form.value),
+                specialInstructions: form.specialInstructions.trim() || undefined,
+                deliveryType: form.deliveryType,
+                deliveryModel: form.deliveryModel,
+            },
+            {
+                onSuccess: () => navigate('/client/orders'),
+                onError: (err: any) => {
+                    // Map backend field errors (validate.middleware) onto the form
+                    const fieldErrors: Array<{ field: string; message: string }> = err?.response?.data?.errors ?? [];
+                    if (fieldErrors.length) setErrors(Object.fromEntries(fieldErrors.map((fe) => [fe.field, fe.message])));
+                },
+            }
+        );
     };
-
-    const inputClass = 'w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-700 focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm font-medium outline-none transition-all';
-    const labelClass = 'block text-xs font-bold text-slate-500 uppercase mb-1.5';
 
     return (
-        <div className="flex-1 overflow-y-auto p-6 lg:p-10">
-            <div className="max-w-2xl mx-auto space-y-6">
-                {/* Header */}
-                <div>
-                    <h1 className="text-3xl font-black text-slate-900 dark:text-white">Place New Order</h1>
-                    <p className="text-slate-500 text-sm mt-1">Fill in the delivery details below</p>
-                </div>
+        <form onSubmit={submit} noValidate className="lg:grid lg:grid-cols-[1fr_320px] lg:gap-6 lg:items-start space-y-4 lg:space-y-0">
+            <div className="space-y-4">
+                <FormSection step={1} title="Pickup">
+                    <Input id="f-pickupLocation" label="Pickup address" placeholder="e.g. 12 Admiralty Way, Lekki Phase 1" autoComplete="street-address" {...bind('pickupLocation')} />
+                    <div className="grid sm:grid-cols-2 gap-4">
+                        <Input id="f-pickupContact" label="Contact name" placeholder="Who hands over the package" {...bind('pickupContact')} />
+                        <Input id="f-pickupPhone" label="Contact phone" type="tel" inputMode="tel" placeholder="0801 234 5678" {...bind('pickupPhone')} />
+                    </div>
+                </FormSection>
 
-                {/* Step indicator */}
-                <div className="flex items-center gap-2">
-                    {STEPS.map((s, i) => (
-                        <React.Fragment key={s}>
-                            <div className={`flex items-center gap-2 ${i <= step ? 'text-primary' : 'text-slate-300 dark:text-gray-600'}`}>
-                                <div className={`size-7 rounded-full flex items-center justify-center text-xs font-black border-2 transition-all ${i < step ? 'bg-primary border-primary text-white' :
-                                    i === step ? 'border-primary text-primary bg-primary/10' :
-                                        'border-slate-200 dark:border-gray-700 text-slate-400'
-                                    }`}>
-                                    {i < step ? <span className="material-symbols-outlined text-[14px]">check</span> : i + 1}
-                                </div>
-                                <span className="text-xs font-bold hidden sm:block">{s}</span>
-                            </div>
-                            {i < STEPS.length - 1 && (
-                                <div className={`flex-1 h-0.5 rounded-full transition-all ${i < step ? 'bg-primary' : 'bg-slate-200 dark:bg-gray-700'}`} />
-                            )}
-                        </React.Fragment>
-                    ))}
-                </div>
+                <FormSection step={2} title="Recipient">
+                    <div className="grid sm:grid-cols-2 gap-4">
+                        <Input id="f-customerName" label="Name" placeholder="Recipient's full name" {...bind('customerName')} />
+                        <Input id="f-customerPhone" label="Phone" type="tel" inputMode="tel" placeholder="0809 876 5432" {...bind('customerPhone')} />
+                    </div>
+                    <Input id="f-customerAddress" label="Delivery address" placeholder="e.g. 4 Bourdillon Road, Ikoyi" {...bind('customerAddress')} />
+                    <Input id="f-landmark" label="Landmark (optional)" placeholder="e.g. Opposite the filling station" {...bind('landmark')} />
+                </FormSection>
 
-                {/* Form card */}
-                <div className="bg-white dark:bg-[#1a202c] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-6 space-y-5">
-                    {/* Step 0: Pickup */}
-                    {step === 0 && (
-                        <>
-                            <h2 className="font-black text-slate-900 dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-primary">location_on</span> Pickup Details
-                            </h2>
-                            <div>
-                                <label className={labelClass}>Pickup Location *</label>
-                                <input className={inputClass} placeholder="e.g. 15 Allen Avenue, Ikeja, Lagos" value={form.pickupLocation} onChange={(e) => update('pickupLocation', e.target.value)} />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className={labelClass}>Contact Person *</label>
-                                    <input className={inputClass} placeholder="Name at pickup" value={form.pickupContact} onChange={(e) => update('pickupContact', e.target.value)} />
-                                </div>
-                                <div>
-                                    <label className={labelClass}>Contact Phone *</label>
-                                    <input className={inputClass} type="tel" placeholder="+234 801 234 5678" value={form.pickupPhone} onChange={(e) => update('pickupPhone', e.target.value)} />
-                                </div>
-                            </div>
-                        </>
-                    )}
+                <FormSection step={3} title="Package">
+                    <Input id="f-description" label="What's inside?" placeholder="e.g. 2 pairs of shoes" {...bind('description')} />
+                    <div className="grid grid-cols-2 gap-4">
+                        <Input id="f-weight" label="Weight (kg)" type="number" inputMode="decimal" min={0} step="0.1" placeholder="e.g. 2" {...bind('weight')} />
+                        <Input id="f-value" label="Item value (₦)" type="number" inputMode="numeric" min={0} placeholder="e.g. 25000" {...bind('value')} />
+                    </div>
+                    <Textarea id="f-specialInstructions" label="Notes for the rider (optional)" rows={2} placeholder="e.g. Fragile, keep upright" {...bind('specialInstructions')} />
+                </FormSection>
 
-                    {/* Step 1: Delivery */}
-                    {step === 1 && (
-                        <>
-                            <h2 className="font-black text-slate-900 dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-primary">person_pin_circle</span> Delivery Details
-                            </h2>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className={labelClass}>Recipient Name *</label>
-                                    <input className={inputClass} placeholder="Customer full name" value={form.customerName} onChange={(e) => update('customerName', e.target.value)} />
-                                </div>
-                                <div>
-                                    <label className={labelClass}>Recipient Phone *</label>
-                                    <input className={inputClass} type="tel" placeholder="+234 802 345 6789" value={form.customerPhone} onChange={(e) => update('customerPhone', e.target.value)} />
-                                </div>
-                            </div>
-                            <div>
-                                <label className={labelClass}>Delivery Address *</label>
-                                <input className={inputClass} placeholder="Full delivery address" value={form.customerAddress} onChange={(e) => update('customerAddress', e.target.value)} />
-                            </div>
-                            <div>
-                                <label className={labelClass}>Landmark (Optional)</label>
-                                <input className={inputClass} placeholder="Near a notable landmark" value={form.landmark} onChange={(e) => update('landmark', e.target.value)} />
-                            </div>
-                        </>
-                    )}
-
-                    {/* Step 2: Package */}
-                    {step === 2 && (
-                        <>
-                            <h2 className="font-black text-slate-900 dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-primary">inventory_2</span> Package Details
-                            </h2>
-                            <div>
-                                <label className={labelClass}>Package Description *</label>
-                                <input className={inputClass} placeholder="e.g. Electronics, Clothing, Documents" value={form.description} onChange={(e) => update('description', e.target.value)} />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className={labelClass}>Weight (kg) *</label>
-                                    <input className={inputClass} type="number" min="0.1" step="0.1" placeholder="e.g. 2.5" value={form.weight} onChange={(e) => update('weight', e.target.value)} />
-                                </div>
-                                <div>
-                                    <label className={labelClass}>Declared Value ({currencySymbol}) *</label>
-                                    <input className={inputClass} type="number" min="0" placeholder="e.g. 15000" value={form.value} onChange={(e) => update('value', e.target.value)} />
-                                </div>
-                            </div>
-                            <div>
-                                <label className={labelClass}>Delivery Type *</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {Object.values(DELIVERY_TYPES).map((type) => (
-                                        <button
-                                            key={type}
-                                            type="button"
-                                            onClick={() => update('deliveryType', type)}
-                                            className={`p-3 rounded-xl border-2 text-sm font-bold text-left transition-all ${form.deliveryType === type
-                                                ? 'border-primary bg-primary/5 text-primary'
-                                                : 'border-slate-200 dark:border-gray-700 text-slate-600 dark:text-gray-400 hover:border-primary/50'
-                                                }`}
-                                        >
-                                            {type}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            <div>
-                                <label className={labelClass}>Special Instructions (Optional)</label>
-                                <textarea
-                                    className={inputClass}
-                                    rows={2}
-                                    placeholder="Fragile, keep upright, call before delivery..."
-                                    value={form.specialInstructions}
-                                    onChange={(e) => update('specialInstructions', e.target.value)}
-                                />
-                            </div>
-                        </>
-                    )}
-
-                    {/* Step 3: Review */}
-                    {step === 3 && (
-                        <>
-                            <h2 className="font-black text-slate-900 dark:text-white flex items-center gap-2">
-                                <span className="material-symbols-outlined text-primary">fact_check</span> Review & Confirm
-                            </h2>
-                            {[
-                                { section: 'Pickup', items: [['Location', form.pickupLocation], ['Contact', form.pickupContact], ['Phone', form.pickupPhone]] },
-                                { section: 'Delivery', items: [['Recipient', form.customerName], ['Phone', form.customerPhone], ['Address', form.customerAddress], form.landmark ? ['Landmark', form.landmark] : null].filter(Boolean) as [string, string][] },
-                                { section: 'Package', items: [['Description', form.description], ['Weight', `${form.weight}kg`], ['Value', `${currencySymbol}${Number(form.value).toLocaleString()}`], ['Type', form.deliveryType]] },
-                            ].map(({ section, items }) => (
-                                <div key={section} className="bg-slate-50 dark:bg-gray-800/50 rounded-xl p-4 space-y-2">
-                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{section}</p>
-                                    {items.map(([label, value]) => (
-                                        <div key={label} className="flex justify-between text-sm">
-                                            <span className="text-slate-500">{label}</span>
-                                            <span className="font-bold text-slate-900 dark:text-white text-right max-w-[60%]">{value}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            ))}
-
-                            <div className="mt-6 bg-slate-900 rounded-2xl p-5 border border-slate-800 relative overflow-hidden group">
-                                <div className="absolute -right-6 -top-6 size-24 bg-primary/20 blur-2xl rounded-full" />
-                                <div className="relative z-10 flex items-center justify-between mb-4">
-                                    <p className="text-white font-bold text-lg">Payment Summary</p>
-                                    <div className="size-8 rounded-lg bg-white/10 flex items-center justify-center">
-                                        <span className="material-symbols-outlined text-[18px] text-white">account_balance_wallet</span>
-                                    </div>
-                                </div>
-                                <div className="space-y-3 relative z-10">
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-slate-400">Delivery Fee</span>
-                                        <span className="text-white font-bold">{currencySymbol}{deliveryFee.toLocaleString()}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm pt-1">
-                                        <span className="text-slate-300">Estimated Total</span>
-                                        <span className="font-bold text-emerald-400">{currencySymbol}{deliveryFee.toLocaleString()}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                {/* Navigation */}
-                <div className="flex gap-3">
-                    {step > 0 && (
-                        <button
-                            onClick={() => setStep((s) => s - 1)}
-                            className="px-6 py-3 border-2 border-slate-200 dark:border-gray-700 rounded-xl font-bold text-sm text-slate-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
-                        >
-                            ← Back
-                        </button>
-                    )}
-                    {step < STEPS.length - 1 ? (
-                        <button
-                            onClick={() => setStep((s) => s + 1)}
-                            disabled={!canProceed()}
-                            className="flex-1 py-3 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary-dark transition-all disabled:opacity-40"
-                        >
-                            Continue →
-                        </button>
-                    ) : (
-                        <button
-                            onClick={handleSubmit}
-                            disabled={isSubmitting}
-                            className="flex-1 py-3 text-white rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 bg-green-600 shadow-lg shadow-green-600/20 hover:bg-green-700 disabled:opacity-60"
-                        >
-                            {isSubmitting ? (
-                                <><span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span> Processing...</>
-                            ) : (
-                                <><span className="material-symbols-outlined text-[18px]">check_circle</span> Place Order</>
-                            )}
-                        </button>
-                    )}
-                </div>
+                <FormSection step={4} title="Delivery speed">
+                    <div className="grid sm:grid-cols-3 gap-2.5">
+                        {(['standard', 'express', 'same_day'] as DeliveryType[]).map((t) => (
+                            <Choice
+                                key={t}
+                                selected={form.deliveryType === t}
+                                onClick={() => set('deliveryType', t)}
+                                title={DELIVERY_TYPE_LABELS[t]}
+                                detail={t === 'standard' ? 'Best price' : t === 'express' ? 'Prioritised pickup' : 'Delivered today'}
+                                price={formatCurrency(estimateDeliveryFee(weight, t, form.deliveryModel))}
+                            />
+                        ))}
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-2.5">
+                        <Choice selected={form.deliveryModel === 'Standard'} onClick={() => set('deliveryModel', 'Standard')} title="EcoRoutes fleet" detail="Our own riders" />
+                        <Choice
+                            selected={form.deliveryModel === 'Premium'}
+                            onClick={() => set('deliveryModel', 'Premium')}
+                            title="Premium"
+                            detail={`Independent riders · +${Math.round((PREMIUM_MULTIPLIER - 1) * 100)}%`}
+                        />
+                    </div>
+                </FormSection>
             </div>
-        </div>
+
+            {/* Summary */}
+            <div className="lg:sticky lg:top-24">
+                <Card>
+                    <h2 className="text-[15px] font-bold text-ink mb-3">Summary</h2>
+                    <dl className="space-y-2 text-sm">
+                        <div className="flex justify-between gap-3">
+                            <dt className="text-ink-secondary">To</dt>
+                            <dd className="font-semibold text-ink text-right truncate">{form.customerAddress || '—'}</dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                            <dt className="text-ink-secondary">Speed</dt>
+                            <dd className="font-semibold text-ink">{DELIVERY_TYPE_LABELS[form.deliveryType]}{form.deliveryModel === 'Premium' && ' · Premium'}</dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                            <dt className="text-ink-secondary">Weight</dt>
+                            <dd className="font-semibold text-ink">{weight ? `${weight} kg` : '—'}</dd>
+                        </div>
+                    </dl>
+                    <div className="flex items-end justify-between border-t border-line mt-4 pt-4">
+                        <span className="text-sm text-ink-secondary">Delivery fee</span>
+                        <span className="text-2xl font-bold text-ink">{formatCurrency(fee)}</span>
+                    </div>
+
+                    {payAsYouGo && (
+                        <p className={cn('text-[13px] mt-2', shortBy > 0 ? 'text-danger font-medium' : 'text-ink-muted')}>
+                            {shortBy > 0
+                                ? `Wallet balance ${formatCurrency(balance)}, so you're ${formatCurrency(shortBy)} short.`
+                                : `Paid from your wallet (${formatCurrency(balance)} available).`}
+                        </p>
+                    )}
+
+                    {serverMessage && (
+                        <div role="alert" className="mt-4 p-3 rounded-xl bg-danger-subtle text-danger text-sm font-medium">
+                            {serverMessage}
+                            {insufficientFunds && (
+                                <Link to="/client/payments" className="block mt-1 underline">Top up your wallet</Link>
+                            )}
+                        </div>
+                    )}
+
+                    {shortBy > 0 ? (
+                        <Link
+                            to="/client/payments"
+                            className="mt-4 h-12 w-full rounded-xl bg-primary text-white font-semibold text-[15px] inline-flex items-center justify-center gap-2 hover:bg-primary-hover"
+                        >
+                            <Icon name="account_balance_wallet" className="text-[20px]" /> Top up wallet
+                        </Link>
+                    ) : (
+                        <Button type="submit" size="lg" fullWidth className="mt-4" isLoading={isPending}>
+                            Book delivery
+                        </Button>
+                    )}
+                    <p className="text-[12px] text-ink-muted mt-3 text-center">You'll see live status in Orders once a rider is assigned.</p>
+                </Card>
+            </div>
+        </form>
     );
 };
 

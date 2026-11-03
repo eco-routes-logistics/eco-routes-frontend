@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ordersApi, GetOrdersParams } from '../api/orders';
+import { ordersApi, GetOrdersParams, OrderStatusValue } from '../api/orders';
 import toast from 'react-hot-toast';
 
 export const useOrders = (params?: GetOrdersParams) => {
@@ -52,7 +52,7 @@ export const useUpdateOrderStatus = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => ordersApi.updateOrderStatus(id, data),
+    mutationFn: ({ id, data }: { id: string; data: { status: OrderStatusValue; notes?: string } }) => ordersApi.updateOrderStatus(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['order', variables.id] });

@@ -1,16 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Rider, useRiderStore } from './riderStore';
+import { RiderProfile } from '@/features/rider-portal/api/riderAuth';
+import { queryClient } from '@/lib/queryClient';
 
 interface RiderAuthState {
-  loggedInRider: Rider | null;
+  loggedInRider: RiderProfile | null;
   isAuthenticated: boolean;
-  authError: string | null;
 
-  login: (email: string, password: string) => boolean;
   logout: () => void;
-  clearError: () => void;
-  setRider: (rider: Rider) => void;
+  setRider: (rider: RiderProfile) => void;
 }
 
 export const useRiderAuthStore = create<RiderAuthState>()(
@@ -18,63 +16,15 @@ export const useRiderAuthStore = create<RiderAuthState>()(
     (set) => ({
       loggedInRider: null,
       isAuthenticated: false,
-      authError: null,
-
-      login: (email, password) => {
-        const riders = useRiderStore.getState().riders;
-        const rider = riders.find(
-          (r) => r.email && r.email.toLowerCase() === email.toLowerCase()
-        );
-
-        if (!rider) {
-          set({ authError: 'No account found with this email address.' });
-          return false;
-        }
-
-        if (rider.status === 'pending') {
-          set({ authError: 'Your application is under review. You will be notified once approved.' });
-          return false;
-        }
-
-        if (rider.status === 'rejected') {
-          const reason = rider.rejectionReason ? ` Reason: ${rider.rejectionReason}` : '';
-          set({ authError: `Your application was not approved.${reason}` });
-          return false;
-        }
-
-        if (rider.status === 'inactive') {
-          set({ authError: 'Your account is inactive. Please contact the EcoRoutes team.' });
-          return false;
-        }
-
-        if (rider.password && rider.password !== password) {
-          set({ authError: 'Incorrect password. Please try again.' });
-          return false;
-        }
-
-        set({ loggedInRider: rider, isAuthenticated: true, authError: null });
-        return true;
-      },
 
       logout: () => {
         localStorage.removeItem('rider_token');
-        set({ loggedInRider: null, isAuthenticated: false, authError: null });
+        queryClient.clear();
+        set({ loggedInRider: null, isAuthenticated: false });
       },
 
-      clearError: () => set({ authError: null }),
-
-      setRider: (rider) => set({ loggedInRider: rider, isAuthenticated: true, authError: null }),
+      setRider: (rider) => set({ loggedInRider: rider, isAuthenticated: true }),
     }),
-    {
-      name: 'rider-auth-storage',
-      storage: {
-        getItem: (name) => {
-          const str = sessionStorage.getItem(name);
-          return str ? JSON.parse(str) : null;
-        },
-        setItem: (name, value) => sessionStorage.setItem(name, JSON.stringify(value)),
-        removeItem: (name) => sessionStorage.removeItem(name),
-      },
-    }
+    { name: 'rider-auth-storage' }
   )
 );

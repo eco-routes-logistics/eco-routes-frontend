@@ -63,3 +63,11 @@ export const useDeleteClient = () => {
     },
   });
 };
+
+export const useClientOrders = (id: string) => {
+  return useQuery({
+    queryKey: ['client', id, 'orders'],
+    queryFn: () => clientsApi.getClientOrders(id),
+    enabled: !!id,
+  });
+};

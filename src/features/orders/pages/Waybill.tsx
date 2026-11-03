@@ -3,6 +3,7 @@ import React from 'react';
 // @ts-ignore - Fixing "no exported member" errors which occur in some TypeScript environments with react-router-dom
 import { useParams, useNavigate } from 'react-router-dom';
 import { useOrderDetails } from '../hooks/useOrders';
+import { formatCurrency } from '@/utils/format';
 
 const Waybill: React.FC = () => {
   const { id } = useParams();
@@ -63,7 +64,7 @@ const Waybill: React.FC = () => {
           </div>
           <div className="p-8">
             <h3 className="text-[10px] font-black text-gray-400 uppercase mb-3">To (Receiver)</h3>
-            <div className="text-base font-black mb-1">{order.customer}</div>
+            <div className="text-base font-black mb-1">{order.customerName}</div>
             <div className="text-sm leading-tight font-medium">
               {order.customerLocation}
             </div>
@@ -95,7 +96,7 @@ const Waybill: React.FC = () => {
              </div>
              <div className="text-right">
                 <h3 className="text-[10px] font-black text-gray-400 uppercase mb-1">Value</h3>
-                <div className="text-xl font-black">{order.value}</div>
+                <div className="text-xl font-black">{formatCurrency(order.value ?? 0)}</div>
              </div>
           </div>
         </div>

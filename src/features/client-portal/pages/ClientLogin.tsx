@@ -1,136 +1,96 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Button, Icon, Input } from '@/components/ui';
+import { AuthFrame } from '@/components/layout/AuthFrame';
+import { DemoAccounts, DEMO_ACCOUNTS } from '@/components/common/DemoAccounts';
+import { cn } from '@/utils/cn';
 import { useClientLogin } from '../hooks/useClientAuth';
 
+// The backend blocks pending/deactivated accounts with a 403 and a message; show those as states, not errors
+const describeError = (message: string) => {
+    if (/pending/i.test(message)) {
+        return { tone: 'info' as const, icon: 'hourglass_top', title: 'Account awaiting approval', body: "We're reviewing your sign-up and will email you once it's approved." };
+    }
+    if (/deactivated/i.test(message)) {
+        return { tone: 'danger' as const, icon: 'block', title: 'Account deactivated', body: 'Please contact EcoRoutes support to restore access.' };
+    }
+    return { tone: 'danger' as const, icon: 'error', title: "Couldn't sign you in", body: message };
+};
+
 const ClientLogin: React.FC = () => {
-    const { mutate: loginMutate, isPending } = useClientLogin();
-    const [form, setForm] = useState({ email: '', password: '' });
+    const { mutate: login, isPending, error } = useClientLogin();
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
-    };
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        loginMutate(form);
-    };
+    const message: string | null = error ? (error as any)?.response?.data?.message ?? 'Something went wrong. Please try again.' : null;
+    const notice = message ? describeError(message) : null;
 
     return (
-        <div className="min-h-screen bg-[#f7f8fa] flex">
-            {/* Left panel */}
-            <div className="hidden lg:flex w-[420px] flex-shrink-0 bg-[#0f1117] flex-col justify-between p-10">
-                <div className="flex items-center gap-2.5">
-                    <div className="size-9 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/40">
-                        <span className="material-symbols-outlined text-white text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>local_shipping</span>
-                    </div>
-                    <div>
-                        <p className="text-[14px] font-bold text-white leading-none">EcoRoute</p>
-                        <p className="text-[10px] text-white/30 font-medium">Business Portal</p>
-                    </div>
-                </div>
-
-                <div>
-                    <div className="space-y-6 mb-10">
-                        {[
-                            { icon: 'bolt', title: 'Real-time tracking', desc: 'Monitor every delivery from pickup to drop-off.' },
-                            { icon: 'receipt_long', title: 'Instant invoicing', desc: 'Auto-generated invoices for every completed order.' },
-                            { icon: 'group', title: 'Team management', desc: 'Manage multiple contacts under one account.' },
-                        ].map((f) => (
-                            <div key={f.title} className="flex items-start gap-3">
-                                <div className="size-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                    <span className="material-symbols-outlined text-primary text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>{f.icon}</span>
-                                </div>
-                                <div>
-                                    <p className="text-[13px] font-semibold text-white">{f.title}</p>
-                                    <p className="text-[12px] text-white/40 mt-0.5">{f.desc}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    <p className="text-[11px] text-white/20">© 2025 EcoRoute Logistics. All rights reserved.</p>
-                </div>
-            </div>
-
-            {/* Right panel */}
-            <div className="flex-1 flex items-center justify-center p-6">
-                <div className="w-full max-w-[400px]">
-                    {/* Mobile logo */}
-                    <div className="flex items-center gap-2 mb-8 lg:hidden">
-                        <div className="size-8 rounded-xl bg-primary flex items-center justify-center">
-                            <span className="material-symbols-outlined text-white text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>local_shipping</span>
-                        </div>
-                        <p className="text-[14px] font-bold text-slate-900">EcoRoute</p>
-                    </div>
-
-                    <h1 className="text-2xl font-bold text-slate-900 mb-1">Sign in</h1>
-                    <p className="text-sm text-slate-500 mb-8">Access your business delivery portal</p>
-
-
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div>
-                            <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">Email address</label>
-                            <input
-                                name="email"
-                                type="email"
-                                value={form.email}
-                                onChange={handleChange}
-                                placeholder="you@company.com"
-                                required
-                                className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                            />
-                        </div>
-
-                        <div>
-                            <div className="flex items-center justify-between mb-1.5">
-                                <label className="text-[12px] font-semibold text-slate-700">Password</label>
-                            </div>
-                            <div className="relative">
-                                <input
-                                    name="password"
-                                    type={showPassword ? 'text' : 'password'}
-                                    value={form.password}
-                                    onChange={handleChange}
-                                    placeholder="••••••••"
-                                    required
-                                    className="w-full h-11 px-4 pr-11 rounded-xl border border-gray-200 bg-white text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                                >
-                                    <span className="material-symbols-outlined text-[18px]">{showPassword ? 'visibility_off' : 'visibility'}</span>
-                                </button>
-                            </div>
-                        </div>
-
-
-
-                        <button
-                            type="submit"
-                            disabled={isPending}
-                            className="w-full h-11 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-700 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
-                        >
-                            {isPending ? (
-                                <>
-                                    <svg className="animate-spin size-4 text-white" viewBox="0 0 24 24" fill="none">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                    </svg>
-                                    Signing in...
-                                </>
-                            ) : 'Sign in'}
-                        </button>
-                    </form>
-
-                    <p className="text-center text-[12px] text-slate-500 mt-6">
-                        Don't have an account?{' '}
-                        <Link to="/client/signup" className="text-primary font-semibold hover:underline">Apply for access</Link>
+        <AuthFrame
+            product="Business"
+            title="Welcome back"
+            subtitle="Book deliveries and track them live."
+            footer={
+                <>
+                    <p>
+                        New to EcoRoutes?{' '}
+                        <Link to="/client/signup" className="font-semibold text-primary">Create a business account</Link>
                     </p>
+                    <p className="text-ink-muted">
+                        <Link to="/rider/login" className="hover:text-ink">Rider login</Link>
+                    </p>
+                </>
+            }
+        >
+            {notice && (
+                <div role="alert" className={cn('mb-6 flex gap-3 p-4 rounded-xl', notice.tone === 'info' ? 'bg-info-subtle text-info' : 'bg-danger-subtle text-danger')}>
+                    <Icon name={notice.icon} filled className="text-[22px] flex-shrink-0" />
+                    <div>
+                        <p className="font-semibold text-[15px]">{notice.title}</p>
+                        <p className="text-sm text-ink-secondary mt-0.5">{notice.body}</p>
+                    </div>
                 </div>
-            </div>
-        </div>
+            )}
+
+            <form
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    login({ email: email.trim(), password });
+                }}
+                className="space-y-4"
+            >
+                <Input label="Business email" type="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" required autoFocus />
+                <Input
+                    label="Password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    rightIcon={
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword((v) => !v)}
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            className="size-10 rounded-lg flex items-center justify-center hover:text-ink"
+                        >
+                            <Icon name={showPassword ? 'visibility_off' : 'visibility'} className="text-[20px]" />
+                        </button>
+                    }
+                />
+                <Button type="submit" size="lg" fullWidth isLoading={isPending} className="!mt-6">
+                    Sign in
+                </Button>
+            </form>
+            <DemoAccounts
+                accounts={DEMO_ACCOUNTS.client}
+                onPick={(demoEmail, demoPassword) => {
+                    setEmail(demoEmail);
+                    setPassword(demoPassword);
+                }}
+            />
+        </AuthFrame>
     );
 };
 

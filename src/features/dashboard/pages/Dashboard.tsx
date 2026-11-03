@@ -1,264 +1,177 @@
-
-import React, { useMemo } from 'react';
-import { useSettingsStore } from '@/stores/settingsStore';
-import type { OrderStatus as OrderStatusType } from '@/types/order';
-import { OrderStatus } from '@/types';
-// @ts-ignore
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useDashboardAnalytics } from '../../analytics/hooks/useAnalytics';
-import { useOrders } from '../../orders/hooks/useOrders';
+import { Card, Icon, PageHeader, SectionTitle, Skeleton, StatusBadge, Table, Td, Th, Tr } from '@/components/ui';
+import { EmptyState } from '@/components/common/EmptyState';
+import { cn } from '@/utils/cn';
+import { formatCurrency, formatDate } from '@/utils/format';
+import { useAuthStore } from '@/stores/authStore';
+import { useDashboardAnalytics } from '@/features/analytics/hooks/useAnalytics';
+import { useOrders } from '@/features/orders/hooks/useOrders';
+import { useRiders } from '@/features/riders/hooks/useRiders';
+import { useClients } from '@/features/clients/hooks/useClients';
+import { OrderDrawer } from '@/features/orders/components/OrderDrawer';
+
+const greeting = () => {
+    const h = new Date().getHours();
+    return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+};
+
+const StatTile: React.FC<{ label: string; value: React.ReactNode; icon: string; loading?: boolean }> = ({ label, value, icon, loading }) => (
+    <Card padding="sm" className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+            <p className="text-[13px] font-medium text-ink-secondary">{label}</p>
+            {loading ? <Skeleton className="h-8 w-20 mt-1" /> : <p className="text-xl sm:text-2xl font-bold text-ink mt-1 break-words">{value}</p>}
+        </div>
+        <span className="hidden sm:flex size-10 rounded-xl bg-primary-subtle items-center justify-center flex-shrink-0">
+            <Icon name={icon} className="text-primary text-[22px]" />
+        </span>
+    </Card>
+);
+
+const AttentionRow: React.FC<{ to: string; icon: string; count?: number; label: string; action: string }> = ({ to, icon, count = 0, label, action }) => (
+    <Link
+        to={to}
+        className={cn(
+            'flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-surface-sunken/60',
+            count === 0 && 'opacity-60'
+        )}
+    >
+        <span className={cn('size-10 rounded-xl flex items-center justify-center flex-shrink-0', count > 0 ? 'bg-warning-subtle text-warning' : 'bg-surface-sunken text-ink-muted')}>
+            <Icon name={icon} className="text-[22px]" />
+        </span>
+        <div className="flex-1 min-w-0">
+            <p className="text-[15px] font-semibold text-ink">
+                {count} {label}
+            </p>
+        </div>
+        {count > 0 && (
+            <span className="text-sm font-semibold text-primary inline-flex items-center gap-1">
+                {action} <Icon name="arrow_forward" className="text-[18px]" />
+            </span>
+        )}
+    </Link>
+);
 
 const Dashboard: React.FC = () => {
-  const { system } = useSettingsStore();
+    const user = useAuthStore((s) => s.user);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Live data from backend
-  const { data: analyticsData, isLoading: analyticsLoading } = useDashboardAnalytics();
-  const { data: ordersData, isLoading: ordersLoading } = useOrders({ limit: 5 });
+    const { data: analytics, isLoading: loadingStats } = useDashboardAnalytics();
+    const { data: recentData, isLoading: loadingRecent } = useOrders({ limit: 8 });
+    const { data: unassignedData } = useOrders({ status: 'pending', limit: 1 });
+    const { data: onlineData, isLoading: loadingRiders } = useRiders({ status: 'active' });
+    const { data: pendingRidersData } = useRiders({ status: 'pending' });
+    const { data: clientsData } = useClients({ limit: 100 });
 
-  const metrics = analyticsData?.data?.metrics;
-  const allOrders = ordersData?.data?.orders || [];
+    const metrics = analytics?.data?.metrics;
+    const rankings = analytics?.data?.rankings;
+    const recent = recentData?.data?.orders ?? [];
+    const selected = recent.find((o) => o.id === selectedId) ?? null;
 
-  const stats = useMemo(() => ({
-    totalOrders: metrics?.totalOrders ?? 0,
-    pendingOrders: metrics?.activeOrders ?? 0,
-    inTransitOrders: 0,
-    deliveredOrders: metrics?.completedOrders ?? 0,
-    activeRiders: 0,
-    totalRiders: 0,
-    totalClients: 0,
-    revenue: metrics?.totalRevenue ?? 0,
-  }), [metrics]);
+    const unassigned = unassignedData?.data?.pagination?.total ?? 0;
+    const pendingRiders = pendingRidersData?.data?.riders?.length ?? 0;
+    const pendingClients = (clientsData?.data?.clients ?? []).filter((c) => c.status === 'pending').length;
+    const attentionTotal = unassigned + pendingRiders + pendingClients;
 
-  const recentOrders = useMemo(() => allOrders.slice(0, 5), [allOrders]);
+    return (
+        <>
+            <PageHeader title={`${greeting()}${user ? `, ${user.name.split(' ')[0]}` : ''}`} description={formatDate(new Date(), 'EEEE, d MMMM')} />
 
-  // Get status badge color
-  const getStatusColor = (status: OrderStatusType) => {
-    switch (status) {
-      case OrderStatus.DELIVERED:
-        return 'bg-green-50 text-green-700 border-green-100 dark:bg-green-900/20 dark:text-green-400';
-      case OrderStatus.IN_TRANSIT:
-        return 'bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-900/20 dark:text-blue-400';
-      case OrderStatus.PENDING:
-        return 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-900/20 dark:text-amber-400';
-      case OrderStatus.CANCELLED:
-        return 'bg-red-50 text-red-700 border-red-100 dark:bg-red-900/20 dark:text-red-400';
-      default:
-        return 'bg-gray-50 text-gray-700 border-gray-100';
-    }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat(system.currency === 'NGN' ? 'en-NG' : 'en-GB', {
-      style: 'currency',
-      currency: system.currency,
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  return (
-    <div className="p-6 lg:p-10 flex flex-col gap-8 max-w-7xl mx-auto">
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Dashboard</h1>
-          <p className="text-slate-500 dark:text-gray-400 text-sm mt-1">
-            Welcome back • <span className="text-green-600 font-bold">System Online</span>
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Link
-            to="/orders"
-            className="h-10 px-4 bg-primary text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-primary/20 hover:bg-primary-dark transition-all"
-          >
-            <span className="material-symbols-outlined text-sm">visibility</span> View All Orders
-          </Link>
-        </div>
-      </header>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total Orders */}
-        <div className="bg-white dark:bg-[#1a202c] rounded-2xl p-6 shadow-sm border border-[#e5e7eb] dark:border-gray-800 flex flex-col justify-between hover:shadow-md transition-all group">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-[#616f89] dark:text-gray-400 text-[10px] font-black uppercase tracking-widest mb-2">Total Orders</p>
-              <h3 className="text-[#111318] dark:text-white text-3xl font-black">{stats.totalOrders}</h3>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+                <StatTile label="Orders today" value={metrics?.totalOrders ?? 0} icon="package_2" loading={loadingStats} />
+                <StatTile label="In progress" value={metrics?.activeOrders ?? 0} icon="local_shipping" loading={loadingStats} />
+                <StatTile label="Delivered today" value={metrics?.completedOrders ?? 0} icon="task_alt" loading={loadingStats} />
+                <StatTile label="Revenue today" value={formatCurrency(metrics?.totalRevenue ?? 0)} icon="payments" loading={loadingStats} />
+                <StatTile label="Riders online" value={onlineData?.data?.riders?.length ?? 0} icon="two_wheeler" loading={loadingRiders} />
             </div>
-            <div className="size-12 rounded-xl bg-slate-50 dark:bg-gray-800 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-              <span className="material-symbols-outlined text-[24px]">package_2</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 mt-4">
-            <span className="text-[#616f89] dark:text-gray-500 text-xs">
-              {stats.deliveredOrders} delivered • {stats.inTransitOrders} in transit
-            </span>
-          </div>
-        </div>
 
-        {/* Active Riders */}
-        <div className="bg-white dark:bg-[#1a202c] rounded-2xl p-6 shadow-sm border border-[#e5e7eb] dark:border-gray-800 flex flex-col justify-between hover:shadow-md transition-all group">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-[#616f89] dark:text-gray-400 text-[10px] font-black uppercase tracking-widest mb-2">Active Riders</p>
-              <h3 className="text-[#111318] dark:text-white text-3xl font-black">{stats.activeRiders}/{stats.totalRiders}</h3>
-            </div>
-            <div className="size-12 rounded-xl bg-slate-50 dark:bg-gray-800 flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
-              <span className="material-symbols-outlined text-[24px]">two_wheeler</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 mt-4">
-            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
-              {stats.activeRiders} Online
-            </span>
-          </div>
-        </div>
+            <div className="grid lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6 min-w-0">
+                    <section>
+                        <SectionTitle>
+                            Needs attention
+                            {attentionTotal > 0 && <span className="ml-2 text-sm font-semibold text-warning">{attentionTotal}</span>}
+                        </SectionTitle>
+                        <Card padding="none" className="divide-y divide-line overflow-hidden">
+                            <AttentionRow to="/orders?status=pending" icon="assignment_late" count={unassigned} label={`order${unassigned === 1 ? '' : 's'} waiting for a rider`} action="Assign" />
+                            <AttentionRow to="/riders" icon="badge" count={pendingRiders} label={`rider application${pendingRiders === 1 ? '' : 's'} to review`} action="Review" />
+                            <AttentionRow to="/clients" icon="storefront" count={pendingClients} label={`business sign-up${pendingClients === 1 ? '' : 's'} to approve`} action="Review" />
+                        </Card>
+                    </section>
 
-        {/* Business Clients */}
-        <div className="bg-white dark:bg-[#1a202c] rounded-2xl p-6 shadow-sm border border-[#e5e7eb] dark:border-gray-800 flex flex-col justify-between hover:shadow-md transition-all group">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-[#616f89] dark:text-gray-400 text-[10px] font-black uppercase tracking-widest mb-2">Business Clients</p>
-              <h3 className="text-[#111318] dark:text-white text-3xl font-black">{stats.totalClients}</h3>
+                    <section>
+                        <SectionTitle action={<Link to="/orders" className="text-sm font-semibold text-primary">View all</Link>}>Recent orders</SectionTitle>
+                        {loadingRecent ? (
+                            <Skeleton className="h-72" />
+                        ) : recent.length === 0 ? (
+                            <Card>
+                                <EmptyState icon="package_2" title="No orders yet" description="Orders placed by business clients will show up here." className="py-6" />
+                            </Card>
+                        ) : (
+                            <Table>
+                                <thead>
+                                    <tr>
+                                        <Th>Order</Th>
+                                        <Th>Recipient</Th>
+                                        <Th>Rider</Th>
+                                        <Th>Status</Th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {recent.map((o) => (
+                                        <Tr key={o.id} onClick={() => setSelectedId(o.id)}>
+                                            <Td>
+                                                <p className="font-semibold whitespace-nowrap">{o.trackingId}</p>
+                                                <p className="text-[12px] text-ink-muted whitespace-nowrap">{o.businessClient ?? ''}</p>
+                                            </Td>
+                                            <Td>
+                                                <p>{o.customerName}</p>
+                                                <p className="text-[12px] text-ink-muted max-w-[220px] truncate">{o.deliveryLocation}</p>
+                                            </Td>
+                                            <Td className="whitespace-nowrap">{o.driver ?? <span className="text-ink-muted">—</span>}</Td>
+                                            <Td>
+                                                <StatusBadge status={o.status} />
+                                            </Td>
+                                        </Tr>
+                                    ))}
+                                </tbody>
+                            </Table>
+                        )}
+                    </section>
+                </div>
+
+                <div className="space-y-6">
+                    {[
+                        { title: 'Top riders', items: rankings?.topRiders ?? [], unit: 'deliveries', to: '/riders' },
+                        { title: 'Top clients', items: rankings?.topClients ?? [], unit: 'orders', to: '/clients' },
+                    ].map((block) => (
+                        <section key={block.title}>
+                            <SectionTitle>{block.title}</SectionTitle>
+                            <Card padding="none" className="divide-y divide-line">
+                                {block.items.length === 0 ? (
+                                    <p className="px-4 py-6 text-sm text-ink-muted text-center">No data yet</p>
+                                ) : (
+                                    block.items.map((item, i) => (
+                                        <Link key={item.id} to={block.to} className="flex items-center gap-3 px-4 py-3 hover:bg-surface-sunken/60">
+                                            <span className="size-7 rounded-full bg-surface-sunken text-[12px] font-bold text-ink-secondary flex items-center justify-center flex-shrink-0">
+                                                {i + 1}
+                                            </span>
+                                            <span className="flex-1 min-w-0 text-sm font-semibold text-ink truncate">{item.name}</span>
+                                            <span className="text-sm text-ink-secondary whitespace-nowrap">
+                                                {item.orders ?? 0} {block.unit}
+                                            </span>
+                                        </Link>
+                                    ))
+                                )}
+                            </Card>
+                        </section>
+                    ))}
+                </div>
             </div>
-            <div className="size-12 rounded-xl bg-slate-50 dark:bg-gray-800 flex items-center justify-center text-purple-600 group-hover:scale-110 transition-transform">
-              <span className="material-symbols-outlined text-[24px]">business_center</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 mt-4">
-            <span className="text-[#616f89] dark:text-gray-500 text-xs">All active partners</span>
-          </div>
-        </div>
 
-        {/* Revenue */}
-        <div className="bg-white dark:bg-[#1a202c] rounded-2xl p-6 shadow-sm border border-[#e5e7eb] dark:border-gray-800 flex flex-col justify-between hover:shadow-md transition-all group">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-[#616f89] dark:text-gray-400 text-[10px] font-black uppercase tracking-widest mb-2">Revenue</p>
-              <h3 className="text-[#111318] dark:text-white text-3xl font-black">{formatCurrency(stats.revenue)}</h3>
-            </div>
-            <div className="size-12 rounded-xl bg-slate-50 dark:bg-gray-800 flex items-center justify-center text-green-600 group-hover:scale-110 transition-transform">
-              <span className="material-symbols-outlined text-[24px]">payments</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 mt-4">
-            <span className="text-[#616f89] dark:text-gray-500 text-xs">From {stats.deliveredOrders} deliveries</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Order Status Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-amber-50 dark:bg-amber-900/20 rounded-2xl p-6 border border-amber-100 dark:border-amber-800">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-amber-600 dark:text-amber-400 text-xs font-bold uppercase">Pending Orders</p>
-              <h3 className="text-amber-900 dark:text-amber-300 text-4xl font-black mt-2">{stats.pendingOrders}</h3>
-            </div>
-            <span className="material-symbols-outlined text-5xl text-amber-300 dark:text-amber-700">pending_actions</span>
-          </div>
-          <p className="text-amber-700 dark:text-amber-500 text-xs mt-4">Awaiting rider assignment</p>
-        </div>
-
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-6 border border-blue-100 dark:border-blue-800">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-600 dark:text-blue-400 text-xs font-bold uppercase">In Transit</p>
-              <h3 className="text-blue-900 dark:text-blue-300 text-4xl font-black mt-2">{stats.inTransitOrders}</h3>
-            </div>
-            <span className="material-symbols-outlined text-5xl text-blue-300 dark:text-blue-700">local_shipping</span>
-          </div>
-          <p className="text-blue-700 dark:text-blue-500 text-xs mt-4">Currently being delivered</p>
-        </div>
-
-        <div className="bg-green-50 dark:bg-green-900/20 rounded-2xl p-6 border border-green-100 dark:border-green-800">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-600 dark:text-green-400 text-xs font-bold uppercase">Delivered</p>
-              <h3 className="text-green-900 dark:text-green-300 text-4xl font-black mt-2">{stats.deliveredOrders}</h3>
-            </div>
-            <span className="material-symbols-outlined text-5xl text-green-300 dark:text-green-700">check_circle</span>
-          </div>
-          <p className="text-green-700 dark:text-green-500 text-xs mt-4">Successfully completed</p>
-        </div>
-      </div>
-
-      {/* Recent Orders */}
-      <div className="bg-white dark:bg-[#1a202c] rounded-2xl border border-[#dbdfe6] dark:border-gray-800 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-          <h2 className="font-bold text-slate-900 dark:text-white">Recent Orders</h2>
-          <Link to="/orders" className="text-primary text-xs font-bold hover:underline">View All</Link>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-[#f9fafb] dark:bg-gray-800/50 border-b border-[#e5e7eb] dark:border-gray-700">
-                <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-[#616f89] dark:text-gray-400">Order ID</th>
-                <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-[#616f89] dark:text-gray-400">Customer</th>
-                <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-[#616f89] dark:text-gray-400">Client</th>
-                <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-[#616f89] dark:text-gray-400">Status</th>
-                <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-[#616f89] dark:text-gray-400">Rider</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {recentOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-500">
-                    No orders yet
-                  </td>
-                </tr>
-              ) : (
-                recentOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50/80 dark:hover:bg-gray-800/30 transition-colors">
-                    <td className="py-4 px-6 font-bold text-primary text-sm">{order.id}</td>
-                    <td className="py-4 px-6">
-                      <div className="text-sm font-bold">{order.customer}</div>
-                      <div className="text-xs text-[#616f89] dark:text-gray-500">{order.customerLocation}</div>
-                    </td>
-                    <td className="py-4 px-6 text-sm font-medium">{order.businessClient}</td>
-                    <td className="py-4 px-6">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tight border ${getStatusColor(order.status)}`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-sm">{order.driver || 'Unassigned'}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Link
-          to="/orders"
-          className="bg-gradient-to-br from-primary to-primary-dark rounded-2xl p-6 text-white hover:shadow-xl transition-all group"
-        >
-          <span className="material-symbols-outlined text-4xl mb-3 block group-hover:scale-110 transition-transform">package_2</span>
-          <h3 className="font-black text-lg">Manage Orders</h3>
-          <p className="text-white/80 text-xs mt-1">View and assign orders to riders</p>
-        </Link>
-
-        <Link
-          to="/riders"
-          className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white hover:shadow-xl transition-all group"
-        >
-          <span className="material-symbols-outlined text-4xl mb-3 block group-hover:scale-110 transition-transform">two_wheeler</span>
-          <h3 className="font-black text-lg">Manage Riders</h3>
-          <p className="text-white/80 text-xs mt-1">Add and manage your delivery team</p>
-        </Link>
-
-        <Link
-          to="/clients"
-          className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white hover:shadow-xl transition-all group"
-        >
-          <span className="material-symbols-outlined text-4xl mb-3 block group-hover:scale-110 transition-transform">business_center</span>
-          <h3 className="font-black text-lg">Manage Clients</h3>
-          <p className="text-white/80 text-xs mt-1">Onboard and manage business partners</p>
-        </Link>
-      </div>
-    </div>
-  );
+            <OrderDrawer order={selected} onClose={() => setSelectedId(null)} />
+        </>
+    );
 };
 
 export default Dashboard;

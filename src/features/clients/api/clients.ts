@@ -1,6 +1,7 @@
 import { api } from '@/lib/axios';
 import { Client } from '@/types/client';
 import { ApiResponse, PaginatedResponse } from '@/types/api';
+import type { ApiOrder } from '@/features/orders/api/orders';
 
 export interface GetClientsParams {
   status?: string;
@@ -27,5 +28,9 @@ export const clientsApi = {
 
   deleteClient: async (id: string) => {
     return api.delete<any, ApiResponse<void>>(`/clients/${id}`);
+  },
+
+  getClientOrders: async (id: string) => {
+    return api.get<any, ApiResponse<{ orders: ApiOrder[] }>>(`/clients/${id}/orders`);
   }
 };

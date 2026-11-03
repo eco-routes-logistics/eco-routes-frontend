@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ridersApi, GetRidersParams } from '../api/riders';
+import { ridersApi, GetRidersParams, RiderInput } from '../api/riders';
 import toast from 'react-hot-toast';
 
 export const useRiders = (params?: GetRidersParams) => {
@@ -36,7 +36,7 @@ export const useUpdateRider = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => ridersApi.updateRider(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<RiderInput> }) => ridersApi.updateRider(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['riders'] });
       queryClient.invalidateQueries({ queryKey: ['rider', variables.id] });
@@ -68,5 +68,35 @@ export const useRiderOrders = (id: string, params?: { status?: string }) => {
     queryKey: ['rider', id, 'orders', params],
     queryFn: () => ridersApi.getRiderOrders(id, params),
     enabled: !!id,
+  });
+};
+
+export const useApproveRider = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ridersApi.approveRider,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['riders'] });
+      toast.success('Rider approved');
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Failed to approve rider');
+    },
+  });
+};
+
+export const useRejectRider = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => ridersApi.rejectRider(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['riders'] });
+      toast.success('Application rejected');
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Failed to reject rider');
+    },
   });
 };

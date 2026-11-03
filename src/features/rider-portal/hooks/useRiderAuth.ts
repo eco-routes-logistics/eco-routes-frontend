@@ -28,13 +28,10 @@ export const useRiderLogin = () => {
     onSuccess: (data) => {
       const { rider, token } = data.data!;
       localStorage.setItem('rider_token', token);
-      useRiderAuthStore.getState().setRider(rider as any);
+      useRiderAuthStore.getState().setRider(rider);
       navigate('/rider/dashboard');
     },
-    onError: (error: any) => {
-      const msg = error?.response?.data?.message || 'Login failed. Please check your credentials.';
-      toast.error(msg);
-    },
+    // Errors are shown inline on the login screen
   });
 };
 
@@ -67,11 +64,24 @@ export const useUpdateRiderStatus = () => {
 
   return useMutation({
     mutationFn: riderAuthApi.updateStatus,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['rider-me'] });
+    // Optimistic: flip the status immediately so the toggle feels instant
+    onMutate: async (status) => {
+      await queryClient.cancelQueries({ queryKey: ['rider-me'] });
+      const previous = queryClient.getQueryData<any>(['rider-me']);
+      if (previous?.data?.rider) {
+        queryClient.setQueryData(['rider-me'], {
+          ...previous,
+          data: { ...previous.data, rider: { ...previous.data.rider, status } },
+        });
+      }
+      return { previous };
     },
-    onError: (error: any) => {
+    onError: (error: any, _status, context) => {
+      if (context?.previous) queryClient.setQueryData(['rider-me'], context.previous);
       toast.error(error?.response?.data?.message || 'Failed to update status');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['rider-me'] });
     },
   });
 };

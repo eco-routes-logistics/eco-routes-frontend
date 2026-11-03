@@ -1,36 +1,59 @@
 /** @type {import('tailwindcss').Config} */
+import forms from '@tailwindcss/forms';
+
+// Design tokens live as CSS variables in src/index.css (light under :root, dark under .dark).
+// Values are space-separated RGB channels so opacity modifiers like bg-primary/10 keep working.
+const token = (name) => `rgb(var(--${name}) / <alpha-value>)`;
+
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   darkMode: 'class',
   theme: {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#2563eb', // blue-600
-          dark: '#1d4ed8',    // blue-700
-          light: '#60a5fa',   // blue-400
+          DEFAULT: token('color-primary'),
+          hover: token('color-primary-hover'),
+          subtle: token('color-primary-subtle'),
+          // Legacy alias still used by pages not yet migrated
+          dark: token('color-primary-hover'),
         },
-        background: {
-          light: '#f8fafc',   // slate-50
-          dark: '#0f172a',    // slate-900
-        }
+        surface: {
+          DEFAULT: token('color-surface'),
+          raised: token('color-surface-raised'),
+          sunken: token('color-surface-sunken'),
+        },
+        line: token('color-border'),
+        ink: {
+          DEFAULT: token('color-text-primary'),
+          secondary: token('color-text-secondary'),
+          muted: token('color-text-muted'),
+        },
+        success: { DEFAULT: token('color-success'), subtle: token('color-success-subtle') },
+        warning: { DEFAULT: token('color-warning'), subtle: token('color-warning-subtle') },
+        danger: { DEFAULT: token('color-danger'), subtle: token('color-danger-subtle') },
+        info: { DEFAULT: token('color-info'), subtle: token('color-info-subtle') },
+
+        // Legacy names from the old CDN config, kept until admin/client pages are migrated
+        'background-light': '#f6f6f8',
+        'background-dark': '#101622',
+        'card-dark': '#1a2230',
+        'surface-dark': '#1a202c',
+        rejected: '#dc2626',
+        whatsapp: '#25D366',
       },
       fontFamily: {
-        display: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Manrope', 'system-ui', 'sans-serif'],
+        display: ['Manrope', 'system-ui', 'sans-serif'],
       },
-      animation: {
-        'marquee': 'marquee 25s linear infinite',
+      borderRadius: {
+        card: '1.25rem',
       },
-      keyframes: {
-        marquee: {
-          '0%': { transform: 'translateX(0%)' },
-          '100%': { transform: 'translateX(-100%)' },
-        }
-      }
+      boxShadow: {
+        raised: '0 1px 2px rgb(16 24 20 / 0.06), 0 1px 3px rgb(16 24 20 / 0.04)',
+        overlay: '0 12px 32px rgb(16 24 20 / 0.12)',
+      },
     },
   },
-  plugins: [],
-}
+  plugins: [forms({ strategy: 'class' })],
+};

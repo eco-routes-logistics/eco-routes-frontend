@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../api/auth';
 import { useAuthStore } from '@/stores/authStore';
 import toast from 'react-hot-toast';
-import { LoginCredentials, RegisterData } from '@/types/user';
+import { LoginCredentials } from '@/types/user';
 
 export const useLogin = () => {
   const loginAction = useAuthStore((state) => state.login);
@@ -14,35 +14,11 @@ export const useLogin = () => {
       if (response.status === 'success' && response.data) {
         loginAction(response.data.user, response.data.token);
         queryClient.invalidateQueries({ queryKey: ['user', 'me'] });
-        toast.success('Logged in successfully');
       } else {
         toast.error(response.message || 'Login failed');
       }
     },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Login failed');
-    },
-  });
-};
-
-export const useRegister = () => {
-  const loginAction = useAuthStore((state) => state.login);
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (data: RegisterData) => authApi.register(data),
-    onSuccess: (response) => {
-      if (response.status === 'success' && response.data) {
-        loginAction(response.data.user, response.data.token);
-        queryClient.invalidateQueries({ queryKey: ['user', 'me'] });
-        toast.success('Registered successfully');
-      } else {
-        toast.error(response.message || 'Registration failed');
-      }
-    },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Registration failed');
-    },
+    // Request errors are shown inline on the login screen
   });
 };
 

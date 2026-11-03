@@ -1,224 +1,161 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Avatar } from '@/components/layout/AppShell';
+import { Button, Card, Icon, Input, Select, SectionTitle, Skeleton, StatusBadge } from '@/components/ui';
+import { cn } from '@/utils/cn';
 import { useRiderAuthStore } from '@/stores/riderAuthStore';
+import { useUIStore } from '@/stores/uiStore';
 import { useRiderMe, useUpdateRiderProfile } from '../hooks/useRiderAuth';
 
-const vehicleOptions = ['Motorcycle', 'Bicycle', 'Car', 'Van', 'Truck'];
+export const VEHICLE_OPTIONS = ['Motorcycle', 'Bicycle', 'Car', 'Van', 'Truck'];
+
+const DetailRow: React.FC<{ label: string; value?: string }> = ({ label, value }) => (
+    <div className="flex items-center justify-between gap-4 py-3">
+        <span className="text-sm text-ink-secondary">{label}</span>
+        <span className="text-[15px] font-semibold text-ink text-right truncate">{value || '—'}</span>
+    </div>
+);
 
 const RiderProfile: React.FC = () => {
-    const { logout } = useRiderAuthStore();
+    const logout = useRiderAuthStore((s) => s.logout);
+    const { theme, setTheme } = useUIStore();
     const navigate = useNavigate();
-    const { data: meData } = useRiderMe();
+    const { data: meData, isLoading } = useRiderMe();
     const { mutate: updateProfile, isPending: isSaving } = useUpdateRiderProfile();
-
-    const liveRider = meData?.data?.rider;
+    const rider = meData?.data?.rider;
 
     const [editing, setEditing] = useState(false);
-    const [saved, setSaved] = useState(false);
-    const [form, setForm] = useState({
-        name: '',
-        phone: '',
-        vehicleType: '',
-    });
+    const [form, setForm] = useState({ name: '', phone: '', vehicleType: '' });
 
-    useEffect(() => {
-        if (liveRider) {
-            setForm({ name: liveRider.name, phone: liveRider.phone, vehicleType: liveRider.vehicleType });
-        }
-    }, [liveRider]);
+    if (isLoading || !rider) {
+        return (
+            <div className="space-y-4">
+                <Skeleton className="h-28" />
+                <Skeleton className="h-20" />
+                <Skeleton className="h-56" />
+            </div>
+        );
+    }
 
-    if (!liveRider) return null;
-
-    const initials = liveRider.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
-    const successRate = liveRider.totalDeliveries > 0
-        ? Math.round(((liveRider.completedOrders ?? 0) / liveRider.totalDeliveries) * 100)
-        : 100;
-
-    const update = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
-
-    const handleSave = () => {
-        updateProfile({ name: form.name, phone: form.phone, vehicleType: form.vehicleType });
-        setEditing(false);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
+    const startEditing = () => {
+        setForm({ name: rider.name, phone: rider.phone, vehicleType: rider.vehicleType });
+        setEditing(true);
     };
 
-    const handleCancel = () => {
-        setForm({ name: liveRider.name, phone: liveRider.phone, vehicleType: liveRider.vehicleType });
-        setEditing(false);
+    const handleSave = (e: React.FormEvent) => {
+        e.preventDefault();
+        updateProfile(
+            { name: form.name.trim(), phone: form.phone.trim(), vehicleType: form.vehicleType },
+            { onSuccess: () => setEditing(false) }
+        );
     };
 
-    const handleLogout = () => {
+    const handleSignOut = () => {
         logout();
         navigate('/rider/login');
     };
 
-    const statusConfig = {
-        active: { label: 'Available', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
-        busy: { label: 'On Delivery', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-        inactive: { label: 'Offline', color: 'bg-slate-100 text-slate-500 dark:bg-gray-800 dark:text-gray-400' },
-    };
-    const statusStyle = statusConfig[liveRider.status] ?? statusConfig.inactive;
-
-    const inputClass = 'w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-700 focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm font-medium outline-none transition-all text-slate-800 dark:text-white disabled:opacity-60 disabled:cursor-default';
+    const vehicleOptions = VEHICLE_OPTIONS.includes(rider.vehicleType) ? VEHICLE_OPTIONS : [rider.vehicleType, ...VEHICLE_OPTIONS];
+    const isDark = theme === 'dark';
 
     return (
-        <div className="flex-1 overflow-y-auto p-6 max-w-2xl space-y-6">
-            {/* Header */}
-            <div>
-                <h1 className="text-2xl font-black text-slate-900 dark:text-white">Profile</h1>
-                <p className="text-slate-500 text-sm mt-1">Manage your rider account</p>
-            </div>
-
-            {saved && (
-                <div className="flex items-center gap-2 p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl">
-                    <span className="material-symbols-outlined text-emerald-500 text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                    <p className="text-[13px] text-emerald-700 dark:text-emerald-400 font-semibold">Profile updated successfully.</p>
-                </div>
-            )}
-
-            {/* Avatar + identity */}
-            <div className="bg-white dark:bg-[#1a1d27] rounded-2xl border border-slate-100 dark:border-gray-800 p-6 flex items-center gap-5">
-                <div className="size-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20 flex-shrink-0">
-                    <span className="text-white text-[24px] font-black">{initials}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                    <p className="text-xl font-black text-slate-900 dark:text-white">{liveRider.name}</p>
-                    <p className="text-slate-500 text-sm">{liveRider.email}</p>
+        <div className="space-y-6">
+            {/* Identity */}
+            <Card className="flex items-center gap-4">
+                <Avatar name={rider.name} url={rider.passportPhotoUrl} className="size-16 text-xl flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                    <p className="text-lg font-bold text-ink truncate">{rider.name}</p>
+                    <p className="text-sm text-ink-secondary truncate">{rider.email}</p>
                     <div className="flex items-center gap-2 mt-2">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${statusStyle.color}`}>{statusStyle.label}</span>
-                        <span className="text-slate-300 dark:text-gray-600">·</span>
-                        <span className="text-[12px] text-slate-500 font-medium">{liveRider.vehicleType}</span>
+                        <StatusBadge status={rider.status} kind="rider" dot />
+                        {rider.riderType === 'premium' && <span className="text-[12px] font-semibold text-primary">Premium rider</span>}
                     </div>
                 </div>
+            </Card>
+
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-3">
+                {[
+                    { label: 'Deliveries', value: rider.totalDeliveries ?? 0 },
+                    { label: 'Rating', value: (rider.rating ?? 0).toFixed(1), icon: 'star' },
+                    { label: 'Active', value: rider.currentOrders ?? 0 },
+                ].map((s) => (
+                    <Card key={s.label} padding="sm" className="text-center">
+                        <p className="text-xl font-bold text-ink inline-flex items-center gap-1">
+                            {s.value}
+                            {s.icon && <Icon name={s.icon} filled className="text-warning text-[18px]" />}
+                        </p>
+                        <p className="text-[12px] font-medium text-ink-muted">{s.label}</p>
+                    </Card>
+                ))}
             </div>
 
-            {/* Performance */}
-            <div className="bg-white dark:bg-[#1a1d27] rounded-2xl border border-slate-100 dark:border-gray-800 p-6">
-                <p className="text-[13px] font-bold text-slate-500 uppercase tracking-wide mb-4">Performance</p>
-                <div className="grid grid-cols-3 gap-4 mb-5">
-                    {[
-                        { label: 'Total Deliveries', value: liveRider.totalDeliveries },
-                        { label: 'Active Orders', value: liveRider.currentOrders },
-                        { label: 'Success Rate', value: `${successRate}%` },
-                    ].map((stat) => (
-                        <div key={stat.label} className="text-center p-3 bg-slate-50 dark:bg-gray-800/50 rounded-xl">
-                            <p className="text-2xl font-black text-slate-900 dark:text-white">{stat.value}</p>
-                            <p className="text-[11px] text-slate-400 font-semibold mt-0.5">{stat.label}</p>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Rating bar */}
-                <div>
-                    <div className="flex items-center justify-between mb-2">
-                        <p className="text-[12px] font-bold text-slate-500 uppercase">Rating</p>
-                        <p className="text-[14px] font-black text-amber-500">{liveRider.rating.toFixed(1)} ★</p>
-                    </div>
-                    <div className="h-2 bg-slate-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-amber-400 rounded-full transition-all"
-                            style={{ width: `${(liveRider.rating / 5) * 100}%` }}
-                        />
-                    </div>
-                    <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-                        <span>0</span>
-                        <span>5.0</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* Edit info */}
-            <div className="bg-white dark:bg-[#1a1d27] rounded-2xl border border-slate-100 dark:border-gray-800 p-6">
-                <div className="flex items-center justify-between mb-5">
-                    <p className="text-[13px] font-bold text-slate-500 uppercase tracking-wide">Account Details</p>
-                    {!editing && (
-                        <button
-                            onClick={() => setEditing(true)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-primary border border-primary/30 bg-primary/5 hover:bg-primary/10 rounded-lg text-[12px] font-bold transition-all"
-                        >
-                            <span className="material-symbols-outlined text-[14px]">edit</span>
-                            Edit
-                        </button>
-                    )}
-                </div>
-
-                <div className="space-y-4">
-                    <div>
-                        <label htmlFor="rider-name" className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Full Name</label>
-                        <input
-                            id="rider-name"
-                            value={form.name}
-                            onChange={(e) => update('name', e.target.value)}
-                            disabled={!editing}
-                            className={inputClass}
-                        />
-                    </div>
-                    <div>
-                        <label htmlFor="rider-email" className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Email</label>
-                        <input
-                            id="rider-email"
-                            value={liveRider.email ?? ''}
-                            disabled
-                            className={inputClass}
-                        />
-                    </div>
-                    <div>
-                        <label htmlFor="rider-phone" className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Phone</label>
-                        <input
-                            id="rider-phone"
-                            value={form.phone}
-                            onChange={(e) => update('phone', e.target.value)}
-                            disabled={!editing}
-                            className={inputClass}
-                        />
-                    </div>
-                    <div>
-                        <label htmlFor="rider-vehicle" className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Vehicle Type</label>
-                        {editing ? (
-                            <select
-                                id="rider-vehicle"
-                                value={form.vehicleType}
-                                onChange={(e) => update('vehicleType', e.target.value)}
-                                className={inputClass}
-                            >
-                                {vehicleOptions.map((v) => <option key={v} value={v}>{v}</option>)}
-                            </select>
-                        ) : (
-                            <input id="rider-vehicle" value={form.vehicleType} disabled className={inputClass} />
-                        )}
-                    </div>
-                </div>
-
-                {editing && (
-                    <div className="flex gap-3 mt-5">
-                        <button
-                            onClick={handleSave}
-                            disabled={isSaving}
-                            className="flex-1 py-2.5 bg-primary text-white rounded-xl text-[14px] font-bold hover:bg-primary-dark transition-all shadow-sm shadow-primary/20 disabled:opacity-60"
-                        >
-                            {isSaving ? 'Saving...' : 'Save Changes'}
-                        </button>
-                        <button
-                            onClick={handleCancel}
-                            className="px-6 py-2.5 border-2 border-slate-200 dark:border-gray-700 rounded-xl font-bold text-sm text-slate-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            {/* Logout */}
-            <div className="bg-white dark:bg-[#1a1d27] rounded-2xl border border-slate-100 dark:border-gray-800 p-5">
-                <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center justify-center gap-2 py-3 border-2 border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 rounded-xl text-[14px] font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+            {/* Details */}
+            <section>
+                <SectionTitle
+                    action={
+                        !editing && (
+                            <Button variant="ghost" size="sm" onClick={startEditing} leftIcon={<Icon name="edit" className="text-[16px]" />}>
+                                Edit
+                            </Button>
+                        )
+                    }
                 >
-                    <span className="material-symbols-outlined text-[18px]">logout</span>
-                    Sign out of Rider Account
-                </button>
-            </div>
+                    Your details
+                </SectionTitle>
+                <Card>
+                    {editing ? (
+                        <form onSubmit={handleSave} className="space-y-4">
+                            <Input label="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+                            <Input label="Phone" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
+                            <Select label="Vehicle" value={form.vehicleType} onChange={(e) => setForm({ ...form, vehicleType: e.target.value })}>
+                                {vehicleOptions.map((v) => (
+                                    <option key={v} value={v}>{v}</option>
+                                ))}
+                            </Select>
+                            <div className="flex gap-3 pt-1">
+                                <Button variant="secondary" size="lg" className="flex-1" onClick={() => setEditing(false)}>
+                                    Cancel
+                                </Button>
+                                <Button type="submit" size="lg" className="flex-1" isLoading={isSaving}>
+                                    Save
+                                </Button>
+                            </div>
+                        </form>
+                    ) : (
+                        <div className="divide-y divide-line -my-3">
+                            <DetailRow label="Phone" value={rider.phone} />
+                            <DetailRow label="Email" value={rider.email} />
+                            <DetailRow label="Vehicle" value={rider.vehicleType} />
+                            <DetailRow label="Plate number" value={rider.vehicleNumber} />
+                        </div>
+                    )}
+                </Card>
+            </section>
+
+            {/* Settings */}
+            <section>
+                <SectionTitle>Settings</SectionTitle>
+                <Card padding="none" className="divide-y divide-line">
+                    <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isDark}
+                        onClick={() => setTheme(isDark ? 'light' : 'dark')}
+                        className="w-full flex items-center gap-3 px-4 h-14 text-left"
+                    >
+                        <Icon name="dark_mode" className="text-ink-secondary text-[22px]" />
+                        <span className="flex-1 text-[15px] font-semibold text-ink">Dark mode</span>
+                        <span className={cn('w-11 h-6 rounded-full p-0.5 transition-colors', isDark ? 'bg-primary' : 'bg-line')}>
+                            <span className={cn('block size-5 rounded-full bg-white shadow transition-transform', isDark && 'translate-x-5')} />
+                        </span>
+                    </button>
+                    <button type="button" onClick={handleSignOut} className="w-full flex items-center gap-3 px-4 h-14 text-left text-danger">
+                        <Icon name="logout" className="text-[22px]" />
+                        <span className="flex-1 text-[15px] font-semibold">Sign out</span>
+                    </button>
+                </Card>
+            </section>
         </div>
     );
 };

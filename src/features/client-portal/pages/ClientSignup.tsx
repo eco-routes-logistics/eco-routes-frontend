@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useClientRegisterPayAsYouGo } from '../hooks/useClientAuth';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Button, Card, Icon, Input, Select } from '@/components/ui';
+import { AuthFrame } from '@/components/layout/AuthFrame';
+import { cn } from '@/utils/cn';
+import { useClientRegisterCorporate, useClientRegisterPayAsYouGo } from '../hooks/useClientAuth';
+
+type AccountType = 'payg' | 'corporate';
 
 interface FormState {
     company: string;
@@ -9,162 +14,199 @@ interface FormState {
     phone: string;
     address: string;
     password: string;
-    confirmPassword: string;
+    registrationNumber: string;
+    estimatedMonthlyVolume: string;
 }
 
-const INITIAL: FormState = {
-    company: '', contactName: '', email: '', phone: '', address: '', password: '', confirmPassword: '',
+type Errors = Partial<Record<keyof FormState, string>>;
+
+const INITIAL: FormState = { company: '', contactName: '', email: '', phone: '', address: '', password: '', registrationNumber: '', estimatedMonthlyVolume: '' };
+
+// Same rules as validatePasswordStrength in the backend's validate.middleware.ts
+const PASSWORD_RULES: Array<[string, (p: string) => boolean]> = [
+    ['8+ characters', (p) => p.length >= 8],
+    ['Upper and lower case', (p) => /[A-Z]/.test(p) && /[a-z]/.test(p)],
+    ['A number', (p) => /[0-9]/.test(p)],
+    ['A symbol', (p) => /[!@#$%^&*(),.?":{}|<>\-_=+[\]\\;'`~]/.test(p)],
+];
+
+const validate = (f: FormState, type: AccountType): Errors => {
+    const e: Errors = {};
+    if (f.company.trim().length < 2) e.company = 'Enter your company name';
+    if (f.contactName.trim().length < 2) e.contactName = 'Enter your full name';
+    if (!/\S+@\S+\.\S+/.test(f.email)) e.email = 'Enter a valid email';
+    if (!f.phone.trim()) e.phone = 'Enter a phone number';
+    if (f.address.trim().length < 5) e.address = 'Enter your business address';
+    if (type === 'payg' && !PASSWORD_RULES.every(([, ok]) => ok(f.password))) e.password = 'Password needs everything in the checklist';
+    if (type === 'corporate') {
+        if (f.registrationNumber.trim().length < 3) e.registrationNumber = 'Enter your RC number';
+        if (!f.estimatedMonthlyVolume) e.estimatedMonthlyVolume = 'Choose your monthly volume';
+    }
+    return e;
 };
 
+const TypeOption: React.FC<{ selected: boolean; onClick: () => void; icon: string; title: string; body: string }> = ({ selected, onClick, icon, title, body }) => (
+    <button
+        type="button"
+        aria-pressed={selected}
+        onClick={onClick}
+        className={cn('text-left p-4 rounded-xl border-2 transition-colors', selected ? 'border-primary bg-primary-subtle' : 'border-line bg-surface-raised hover:border-ink-muted')}
+    >
+        <Icon name={icon} filled={selected} className={cn('text-[24px]', selected ? 'text-primary' : 'text-ink-secondary')} />
+        <span className={cn('block text-[15px] font-semibold mt-2', selected ? 'text-primary' : 'text-ink')}>{title}</span>
+        <span className="block text-[13px] text-ink-secondary mt-0.5">{body}</span>
+    </button>
+);
+
 const ClientSignup: React.FC = () => {
-    const { mutate: register, isPending } = useClientRegisterPayAsYouGo();
+    const [params] = useSearchParams();
+    const [type, setType] = useState<AccountType>(params.get('type') === 'corporate' ? 'corporate' : 'payg');
     const [form, setForm] = useState<FormState>(INITIAL);
-    const [errors, setErrors] = useState<Partial<FormState>>({});
+    const [errors, setErrors] = useState<Errors>({});
+    const [serverError, setServerError] = useState<string | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
     const [submitted, setSubmitted] = useState(false);
-    const [showPw, setShowPw] = useState(false);
+    const payg = useClientRegisterPayAsYouGo();
+    const corporate = useClientRegisterCorporate();
+    const isPending = payg.isPending || corporate.isPending;
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setForm((p) => ({ ...p, [name]: value }));
-        setErrors((p) => ({ ...p, [name]: undefined }));
+    const bind = (k: keyof FormState) => ({
+        value: form[k],
+        error: errors[k],
+        onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+            setForm((f) => ({ ...f, [k]: e.target.value }));
+            setErrors((er) => ({ ...er, [k]: undefined }));
+        },
+    });
+
+    const handlers = {
+        onSuccess: () => setSubmitted(true),
+        onError: (err: any) => {
+            const fieldErrors: Array<{ field: string; message: string }> = err?.response?.data?.errors ?? [];
+            // Field errors are shown on the fields themselves; only fall back to a banner when there are none
+            if (fieldErrors.length) setErrors(Object.fromEntries(fieldErrors.map((fe) => [fe.field, fe.message])));
+            else setServerError(err?.response?.data?.message ?? 'Something went wrong. Please try again.');
+        },
     };
 
-    const validate = (): boolean => {
-        const e: Partial<FormState> = {};
-        if (!form.company.trim()) e.company = 'Required';
-        if (!form.contactName.trim()) e.contactName = 'Required';
-        if (!form.email.trim()) e.email = 'Required';
-        if (!form.phone.trim()) e.phone = 'Required';
-        if (form.password.length < 6) e.password = 'Min 6 characters';
-        if (form.password !== form.confirmPassword) e.confirmPassword = 'Passwords do not match';
-        setErrors(e);
-        return Object.keys(e).length === 0;
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
+    const submit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!validate()) return;
-        register(
-            { company: form.company, contactName: form.contactName, email: form.email, phone: form.phone, address: form.address, password: form.password },
-            { onSuccess: () => setSubmitted(true) }
-        );
+        setServerError(null);
+        const found = validate(form, type);
+        setErrors(found);
+        if (Object.keys(found).length) return;
+        const base = {
+            company: form.company.trim(),
+            contactName: form.contactName.trim(),
+            email: form.email.trim(),
+            phone: form.phone.trim(),
+            address: form.address.trim(),
+        };
+        if (type === 'payg') payg.mutate({ ...base, password: form.password }, handlers);
+        else corporate.mutate({ ...base, registrationNumber: form.registrationNumber.trim(), estimatedMonthlyVolume: form.estimatedMonthlyVolume }, handlers);
     };
 
     if (submitted) {
         return (
-            <div className="min-h-screen bg-[#f7f8fa] flex items-center justify-center p-6">
-                <div className="w-full max-w-md text-center">
-                    <div className="size-16 bg-emerald-50 border-2 border-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
-                        <span className="material-symbols-outlined text-emerald-500 text-[32px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                    </div>
-                    <h2 className="text-xl font-bold text-slate-900 mb-2">Application Received</h2>
-                    <p className="text-sm text-slate-500 mb-6">
-                        Your account for <strong>{form.company}</strong> is currently under review. Our admin team will verify your details and approve your account shortly. We will notify you at <strong>{form.email}</strong> once approved.
+            <AuthFrame
+                product="Business"
+                title={type === 'payg' ? 'Account created' : 'Application received'}
+                subtitle={
+                    type === 'payg'
+                        ? `We're reviewing ${form.company}. You can sign in as soon as it's approved.`
+                        : `Thanks. Our team will review ${form.company} and contact ${form.email} to set up your corporate account and login.`
+                }
+            >
+                <Card className="flex items-start gap-3">
+                    <Icon name="mark_email_unread" className="text-primary text-[24px] flex-shrink-0" />
+                    <p className="text-sm text-ink-secondary">
+                        We'll email <span className="font-semibold text-ink">{form.email}</span> when your account is approved.
                     </p>
-                    <Link
-                        to="/"
-                        className="inline-flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-700 transition-all"
-                    >
-                        Return to Homepage
-                    </Link>
-                </div>
-            </div>
+                </Card>
+                <Link to="/client/login" className="mt-6 h-12 w-full rounded-xl bg-primary text-white font-semibold text-[15px] inline-flex items-center justify-center hover:bg-primary-hover">
+                    Back to sign in
+                </Link>
+            </AuthFrame>
         );
     }
 
-    const field = (
-        name: keyof FormState,
-        label: string,
-        type = 'text',
-        placeholder = '',
-        extra?: React.ReactNode
-    ) => (
-        <div>
-            <label className="block text-[12px] font-semibold text-slate-700 mb-1.5">{label}</label>
-            <div className="relative">
-                <input
-                    name={name}
-                    type={name === 'password' || name === 'confirmPassword' ? (showPw ? 'text' : 'password') : type}
-                    value={form[name]}
-                    onChange={handleChange}
-                    placeholder={placeholder}
-                    className={`w-full h-11 px-4 rounded-xl border bg-white text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all ${errors[name] ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                        }`}
-                />
-                {extra}
-            </div>
-            {errors[name] && <p className="text-[11px] text-red-500 mt-1">{errors[name]}</p>}
-        </div>
-    );
-
     return (
-        <div className="min-h-screen bg-[#f7f8fa] flex items-center justify-center p-6">
-            <div className="w-full max-w-[480px]">
-                {/* Header */}
-                <div className="flex items-center gap-2 mb-8">
-                    <div className="size-8 rounded-xl bg-primary flex items-center justify-center">
-                        <span className="material-symbols-outlined text-white text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>local_shipping</span>
-                    </div>
-                    <p className="text-[14px] font-bold text-slate-900">EcoRoute</p>
-                </div>
-
-                <h1 className="text-2xl font-bold text-slate-900 mb-1">Apply for an account</h1>
-                <p className="text-sm text-slate-500 mb-8">Sign up for a Pay-As-You-Go wallet. All new accounts are reviewed by our admin team before activation.</p>
-
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Company section */}
-                    <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Company Details</p>
-                        {field('company', 'Company name', 'text', 'Acme Logistics Ltd.')}
-                        {field('address', 'Business address', 'text', '123 Main Street, Lagos')}
-                    </div>
-
-                    {/* Contact section */}
-                    <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Contact Person</p>
-                        {field('contactName', 'Full name', 'text', 'John Doe')}
-                        {field('email', 'Email address', 'email', 'john@company.com')}
-                        {field('phone', 'Phone number', 'tel', '+234 800 000 0000')}
-                    </div>
-
-                    {/* Password section */}
-                    <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Security</p>
-                            <button type="button" onClick={() => setShowPw(!showPw)} className="text-[11px] text-slate-400 hover:text-primary flex items-center gap-1">
-                                <span className="material-symbols-outlined text-[14px]">{showPw ? 'visibility_off' : 'visibility'}</span>
-                                {showPw ? 'Hide' : 'Show'}
-                            </button>
-                        </div>
-                        {field('password', 'Password', 'password', 'Min 6 characters')}
-                        {field('confirmPassword', 'Confirm password', 'password', 'Repeat password')}
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={isPending}
-                        className="w-full h-11 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-700 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
-                    >
-                        {isPending ? (
-                            <>
-                                <svg className="animate-spin size-4 text-white" viewBox="0 0 24 24" fill="none">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                </svg>
-                                Creating account...
-                            </>
-                        ) : 'Create free account'}
-                    </button>
-
-                    <p className="text-center text-[12px] text-slate-500">
-                        Already have an account?{' '}
-                        <Link to="/client/login" className="text-primary font-semibold hover:underline">Sign in</Link>
-                        <span className="mx-2 text-slate-300">|</span>
-                        <Link to="/client/corporate-signup" className="text-slate-600 font-semibold hover:underline">Apply for Corporate Account</Link>
-                    </p>
-                </form>
+        <AuthFrame
+            product="Business"
+            title="Create a business account"
+            subtitle="Book, pay for and track deliveries in one place."
+            footer={
+                <p>
+                    Already have an account? <Link to="/client/login" className="font-semibold text-primary">Sign in</Link>
+                </p>
+            }
+        >
+            <div className="grid grid-cols-2 gap-2.5 mb-6">
+                <TypeOption selected={type === 'payg'} onClick={() => setType('payg')} icon="account_balance_wallet" title="Pay as you go" body="Top up a wallet, pay per delivery" />
+                <TypeOption selected={type === 'corporate'} onClick={() => setType('corporate')} icon="domain" title="Corporate" body="High volume, billed monthly" />
             </div>
-        </div>
+
+            {serverError && (
+                <div role="alert" className="mb-5 p-3 rounded-xl bg-danger-subtle text-danger text-sm font-medium">
+                    {serverError}
+                </div>
+            )}
+
+            <form onSubmit={submit} noValidate className="space-y-4">
+                <Input label="Company name" autoComplete="organization" {...bind('company')} />
+                <Input label="Your full name" autoComplete="name" {...bind('contactName')} />
+                <Input label="Work email" type="email" autoComplete="email" inputMode="email" {...bind('email')} />
+                <Input label="Phone" type="tel" autoComplete="tel" inputMode="tel" placeholder="0801 234 5678" {...bind('phone')} />
+                <Input label="Business address" autoComplete="street-address" {...bind('address')} />
+
+                {type === 'payg' ? (
+                    <div>
+                        <Input
+                            label="Password"
+                            type={showPassword ? 'text' : 'password'}
+                            autoComplete="new-password"
+                            {...bind('password')}
+                            rightIcon={
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword((v) => !v)}
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                    className="size-10 rounded-lg flex items-center justify-center hover:text-ink"
+                                >
+                                    <Icon name={showPassword ? 'visibility_off' : 'visibility'} className="text-[20px]" />
+                                </button>
+                            }
+                        />
+                        <ul className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2" aria-label="Password requirements">
+                            {PASSWORD_RULES.map(([label, ok]) => {
+                                const met = ok(form.password);
+                                return (
+                                    <li key={label} className={cn('text-[13px] inline-flex items-center gap-1.5', met ? 'text-success' : 'text-ink-muted')}>
+                                        <Icon name={met ? 'check_circle' : 'radio_button_unchecked'} filled={met} className="text-[16px]" />
+                                        {label}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </div>
+                ) : (
+                    <>
+                        <Input label="Company registration (RC) number" placeholder="e.g. RC 1234567" {...bind('registrationNumber')} />
+                        <Select label="Deliveries per month" {...bind('estimatedMonthlyVolume')}>
+                            <option value="" disabled>Choose a range</option>
+                            <option value="50-100">50 – 100</option>
+                            <option value="100-500">100 – 500</option>
+                            <option value="500-1000">500 – 1,000</option>
+                            <option value="1000+">1,000+</option>
+                        </Select>
+                    </>
+                )}
+
+                <Button type="submit" size="lg" fullWidth isLoading={isPending} className="!mt-6">
+                    {type === 'payg' ? 'Create account' : 'Apply for corporate account'}
+                </Button>
+            </form>
+        </AuthFrame>
     );
 };
 

@@ -19,6 +19,7 @@ export const useAcceptJob = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rider-available-jobs'] });
       queryClient.invalidateQueries({ queryKey: ['rider-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['rider-me'] });
       toast.success('Job accepted!');
     },
     onError: (error: any) => {
@@ -51,6 +52,7 @@ export const useMarkDelivered = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rider-orders'] });
       queryClient.invalidateQueries({ queryKey: ['rider-earnings'] });
+      queryClient.invalidateQueries({ queryKey: ['rider-me'] });
       toast.success('Delivery confirmed!');
     },
     onError: (error: any) => {
