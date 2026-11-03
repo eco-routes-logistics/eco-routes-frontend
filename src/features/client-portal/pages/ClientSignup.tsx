@@ -30,7 +30,7 @@ const validate = (f: FormState, type: AccountType): Errors => {
     if (!f.phone.trim()) e.phone = 'Enter a phone number';
     if (f.address.trim().length < 5) e.address = 'Enter your business address';
     // Mirrors the backend's validatePasswordStrength: length only
-    if (type === 'payg' && f.password.length < 8) e.password = 'Use at least 8 characters';
+    if (type === 'payg' && f.password.length < 5) e.password = 'Use at least 5 characters';
     if (type === 'corporate') {
         if (f.registrationNumber.trim().length < 3) e.registrationNumber = 'Enter your RC number';
         if (!f.estimatedMonthlyVolume) e.estimatedMonthlyVolume = 'Choose your monthly volume';
@@ -158,7 +158,7 @@ const ClientSignup: React.FC = () => {
                             label="Password"
                             type={showPassword ? 'text' : 'password'}
                             autoComplete="new-password"
-                            hint="At least 8 characters"
+                            hint="At least 5 characters"
                             {...bind('password')}
                             rightIcon={
                                 <button
