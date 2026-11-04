@@ -32,6 +32,32 @@ const DeliveryPreview: React.FC = () => (
     </div>
 );
 
+const steps = [
+    { title: 'Book online', body: 'Pickup, drop-off and price upfront' },
+    { title: 'A verified rider picks it up', body: 'Every rider is ID-checked' },
+    { title: 'Track it to the door', body: "Live status until it's delivered" },
+];
+
+/** Phone-sized stand-in for the preview card: what happens, in three lines. */
+const HowItWorks: React.FC = () => (
+    <section className="w-full max-w-sm mx-auto text-left">
+        <p className="text-[13px] font-semibold text-ink-muted mb-3 px-1">How it works</p>
+        <Card padding="none" className="divide-y divide-line">
+            {steps.map((s, i) => (
+                <div key={s.title} className="px-4 py-3.5 flex items-center gap-3">
+                    <span className="size-9 rounded-full bg-primary-subtle text-primary font-bold text-sm flex items-center justify-center flex-shrink-0">
+                        {i + 1}
+                    </span>
+                    <div className="min-w-0">
+                        <p className="text-[15px] font-semibold text-ink">{s.title}</p>
+                        <p className="text-[13px] text-ink-secondary">{s.body}</p>
+                    </div>
+                </div>
+            ))}
+        </Card>
+    </section>
+);
+
 const Landing: React.FC = () => (
     <div className="min-h-[100dvh] bg-surface flex flex-col">
         <header className="w-full max-w-6xl mx-auto px-5 h-20 flex items-center justify-between">
@@ -47,7 +73,7 @@ const Landing: React.FC = () => (
         </header>
 
         <main className="flex-1 flex items-center">
-            <div className="w-full max-w-6xl mx-auto px-5 py-12 grid lg:grid-cols-2 gap-14 items-center">
+            <div className="w-full max-w-6xl mx-auto px-5 py-8 lg:py-12 grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
                 <div className="text-center lg:text-left">
                     <h1 className="text-[44px] sm:text-6xl font-extrabold tracking-tight leading-[1.05] text-ink">
                         Deliveries, <span className="text-primary">sorted</span>.
@@ -71,7 +97,12 @@ const Landing: React.FC = () => (
                     </div>
                 </div>
 
-                <DeliveryPreview />
+                <div className="lg:hidden">
+                    <HowItWorks />
+                </div>
+                <div className="hidden lg:block">
+                    <DeliveryPreview />
+                </div>
             </div>
         </main>
 
