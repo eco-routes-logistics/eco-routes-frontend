@@ -85,6 +85,13 @@
   display: inline-block;
   vertical-align: middle;
   line-height: 1;
+  /* Reserve a square box so the ligature name (e.g. "arrow_forward") can't
+     stretch the layout while the icon font is still loading */
+  width: 1em;
+  height: 1em;
+  overflow: hidden;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .material-symbols-outlined.fill-1 {
